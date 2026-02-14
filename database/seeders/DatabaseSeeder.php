@@ -10,16 +10,22 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
-    public function run(): void
-    {
-        // User::factory(10)->create();
+  public function run(): void
+{
+    // 1. CREAR LOS ROLES PRIMERO
+    \DB::table('roles')->insertOrIgnore([
+        ['id' => 0, 'created_at' => now(), 'updated_at' => now()], // Root
+        ['id' => 1, 'created_at' => now(), 'updated_at' => now()], // Admin
+        ['id' => 2, 'created_at' => now(), 'updated_at' => now()], // Técnico
+    ]);
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
-    }
+    // 2. CREAR TU USUARIO (Asegúrate de borrar el User::factory() que viene por defecto)
+    \App\Models\User::create([
+        'name' => 'Pedro Root',
+        'email' => 'root@agente.com',
+        'password' => \Hash::make('root123'),
+        'role_id' => 0, // Aquí le asignamos el ID que creamos arriba
+        'is_active' => 1,
+    ]);
+}
 }
