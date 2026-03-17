@@ -13,10 +13,9 @@ return new class extends Migration
 {
     Schema::create('properties', function (Blueprint $table) {
         $table->id();
-        // ESTA es la columna que te faltaba:
         $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
         
-        $table->string('type'); // Casa, Depto
+        $table->string('type'); 
         $table->string('custom_curp', 191)->unique();
         $table->text('address');
         $table->string('coordinates')->nullable();

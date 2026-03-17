@@ -9,7 +9,6 @@ class Appliance extends Model
 {
     use HasFactory;
 
-    // Estos son los campos que permitimos guardar desde el formulario
     protected $fillable = [
         'property_id',
         'type',
@@ -17,10 +16,9 @@ class Appliance extends Model
         'model',
         'serial_number',
         'has_warranty',
-        'image_path', // ¡Importante para la foto!
+        'image_path', 
     ];
 
-    // Relación inversa: Un electrodoméstico pertenece a una Propiedad
     public function property()
     {
         return $this->belongsTo(Property::class);

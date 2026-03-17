@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('jobs', function (Blueprint $table) {
             $table->id();
-            // AJUSTE 1: queue limitado a 191
             $table->string('queue', 191)->index();
             $table->longText('payload');
             $table->unsignedTinyInteger('attempts');
@@ -23,7 +22,6 @@ return new class extends Migration
         });
 
         Schema::create('job_batches', function (Blueprint $table) {
-            // AJUSTE 2: id limitado a 191
             $table->string('id', 191)->primary();
             $table->string('name');
             $table->integer('total_jobs');
@@ -38,7 +36,6 @@ return new class extends Migration
 
         Schema::create('failed_jobs', function (Blueprint $table) {
             $table->id();
-            // AJUSTE 3: uuid limitado a 191
             $table->string('uuid', 191)->unique();
             $table->text('connection');
             $table->text('queue');

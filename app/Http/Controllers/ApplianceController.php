@@ -39,7 +39,6 @@ class ApplianceController extends Controller
     }
     public function index()
     {
-        // Devuelve todos los equipos ordenados por el más nuevo primero
         return Appliance::orderBy('created_at', 'desc')->get();
     }
 
