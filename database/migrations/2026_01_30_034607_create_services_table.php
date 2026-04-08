@@ -14,7 +14,7 @@ return new class extends Migration
             
            
             $table->unsignedBigInteger('property_id')->nullable();
-            $table->unsignedBigInteger('requested_by')->nullable(); e
+            $table->unsignedBigInteger('requested_by')->nullable(); 
             $table->unsignedBigInteger('assigned_to')->nullable();  
             $table->unsignedBigInteger('service_category_id')->nullable(); 
             

@@ -15,7 +15,9 @@ class Property extends Model
         'state', 
         'custom_curp', 
         'address', 
-        'coordinates'
+        'coordinates',
+        'property_name',       // 👈 Campo nuevo para el nombre
+        'facade_photo_path'    // 👈 Campo nuevo para la foto
     ];
 
     public function services()
@@ -26,5 +28,10 @@ class Property extends Model
     public function client()
     {
         return $this->belongsTo(Client::class, 'client_id');
+    }
+    
+    public function areas()
+    {
+        return $this->hasMany(PropertyArea::class);
     }
 }

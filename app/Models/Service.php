@@ -11,7 +11,7 @@ class Service extends Model
     protected $fillable = [
         'property_id',
         'requested_by',
-        'assigned_to', 
+        'assigned_to',
         'service_category_id',
         'service_type',
         'priority',
@@ -21,12 +21,22 @@ class Service extends Model
         'scheduled_start',
         'scheduled_end',
         'real_start',
-        'real_end'
+        'real_end',
+        'supervisor_name'
     ];
 
     public function property()
     {
         return $this->belongsTo(Property::class, 'property_id');
+    }
+
+    public function technician()
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
+    }
+    public function components()
+    {
+        return $this->belongsToMany(PropertyComponent::class, 'service_component');
     }
 }
 

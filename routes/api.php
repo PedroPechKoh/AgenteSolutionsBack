@@ -9,114 +9,21 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\Api\AppSettingController;
+use App\Http\Controllers\QuoteController;
+use App\Http\Controllers\PropertyComponentController;
 
-Route::post('/login-rapido', function (\Illuminate\Http\Request $request) {
-    $user = \App\Models\User::where('email', $request->email)->first();
+// ========================================================
+// 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
+// ========================================================
 
-    if (!$user || !\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
-        return response()->json(['message' => 'Credenciales incorrectas'], 401);
-    }
+// 1. Logins y Registros
+Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
-   return response()->json([
-        'message' => 'Login exitoso',
-        'id' => $user->id,
-        'first_name' => $user->first_name,
-        'last_name' => $user->last_name,
-        'email' => $user->email,
-        'phone_number' => $user->phone_number,
-        'birth_date' => $user->birth_date,
-        'role_id' => $user->role_id,
-        'profile_picture' => $user->profile_picture,
-        'cover_picture' => $user->cover_picture,
-        'created_at' => $user->created_at
-    ]);
-});
-
-Route::post('/update-photos', function (\Illuminate\Http\Request $request) {
-    $user = \App\Models\User::find($request->user_id);
-
-    if (!$user) {
-        return response()->json(['error' => 'User not found'], 404);
-    }
-
-    if ($request->hasFile('profile_picture')) {
-        $profilePath = $request->file('profile_picture')->store('profiles', 'public');
-        $user->profile_picture = asset('storage/' . $profilePath);
-    }
-
-    if ($request->hasFile('cover_picture')) {
-        $coverPath = $request->file('cover_picture')->store('covers', 'public');
-        $user->cover_picture = asset('storage/' . $coverPath);
-    }
-    $user->save();
-
-    return response()->json([
-        'message' => 'Photos updated successfully',
-        'profile_picture' => $user->profile_picture,
-        'cover_picture' => $user->cover_picture
-    ]);
-});
-
-Route::post('/update-profile', function (\Illuminate\Http\Request $request) {
-    $user = \App\Models\User::find($request->user_id);
-
-    if (!$user) {
-        return response()->json(['error' => 'User not found'], 404);
-    }
-    $user->first_name = $request->first_name;
-    $user->last_name = $request->last_name;
-    $user->phone_number = $request->phone_number;
-    $user->email = $request->email;
-    $user->birth_date = $request->birth_date;
-
-    $user->save();
-
-    return response()->json([
-        'message' => 'Profile updated successfully',
-        'user' => $user
-    ]);
-});
-
-Route::get('/map', function () {
-    $propiedades = \Illuminate\Support\Facades\DB::table('properties')
-        ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
-        ->whereNotNull('properties.coordinates')
-        ->where('properties.coordinates', '!=', '')
-        ->select(
-            'properties.id as prop_id',
-            'properties.address',
-            'properties.coordinates',
-            'clients.name', 
-            'clients.phone',
-            'clients.profile_picture'
-        )
-        ->get();
-
-    $marcadores = $propiedades->map(function ($prop) {
-        $partes = explode(',', $prop->coordinates);
-        
-        return [
-            'id' => $prop->prop_id,
-            'address' => $prop->address,
-            'lat' => isset($partes[0]) ? (float) trim($partes[0]) : null,
-            'lng' => isset($partes[1]) ? (float) trim($partes[1]) : null,
-            
-            
-            'owner_name' => $prop->name, 
-            'phone' => $prop->phone,
-            'picture' => $prop->profile_picture 
-        ];
-    })->filter(function($m) {
-        return $m['lat'] !== null && $m['lng'] !== null;
-    })->values();
-
-    return response()->json($marcadores);
-});
-
+// Mantuve tu registro de clientes aquí para que siga funcionando
 Route::post('/public-client-register', function (Request $request) {
-    
     return DB::transaction(function () use ($request) {
-        
         $userId = DB::table('users')->insertGetId([
             'role_id' => 3,
             'first_name' => $request->first_name,
@@ -131,7 +38,7 @@ Route::post('/public-client-register', function (Request $request) {
         $nombreCompleto = trim($request->first_name . ' ' . $request->last_name);
 
         DB::table('clients')->insert([
-            'user_id' => $userId, 
+            'user_id' => $userId,
             'name' => $nombreCompleto,
             'email' => $request->email,
             'phone' => $request->phone,
@@ -143,12 +50,105 @@ Route::post('/public-client-register', function (Request $request) {
     });
 });
 
-Route::post('/appliances', [ApplianceController::class, 'store']);
-Route::get('/appliances', [ApplianceController::class, 'index']);
-Route::post('/registro-usuario', [AuthController::class, 'registro']);
-Route::post('/registro-propiedad', [PropertyController::class, 'store']);
-Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
-Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getServices']);
-Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', 
-[App\Http\Controllers\ServiceController::class, 'getServicesByProperty']);
-Route::get('/servicios/{id}', [ServiceController::class, 'getServiceDetalle']);
+// Rutas para Personalizar Login (Es normal que sean públicas para que se vean antes de entrar)
+Route::post('/ui/settings/login-background/image', [AppSettingController::class, 'updateLoginBackground']);
+Route::delete('/ui/settings/login-background/image', [AppSettingController::class, 'deleteLoginBackground']);
+Route::post('/ui/settings/login-background/color', [AppSettingController::class, 'updateLoginColor']);
+Route::get('/ui/settings/login-settings', [AppSettingController::class, 'getLoginSettings']);
+
+
+// ========================================================
+// 🔴 ZONA SEGURA (Solo entras si traes el Token de Sanctum)
+// ========================================================
+
+Route::middleware('auth:sanctum')->group(function () {
+    
+    // --- USUARIOS Y PERFILES ---
+    Route::get('/usuarios', [UserController::class, 'getUsuarios']);
+    Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
+    Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
+    Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
+    Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
+    Route::get('/usuarios/tecnicos', [UserController::class, 'getTecnicos']);
+
+    // --- FOTOS DE PERFIL ---
+    Route::post('/update-photos', function (\Illuminate\Http\Request $request) {
+        $user = \App\Models\User::find($request->user_id);
+        if (!$user) return response()->json(['error' => 'User not found'], 404);
+
+        if ($request->hasFile('profile_picture')) {
+            $profilePath = $request->file('profile_picture')->store('profiles', 'public');
+            $user->profile_picture = asset('storage/' . $profilePath);
+        }
+        if ($request->hasFile('cover_picture')) {
+            $coverPath = $request->file('cover_picture')->store('covers', 'public');
+            $user->cover_picture = asset('storage/' . $coverPath);
+        }
+        $user->save();
+
+        return response()->json([
+            'message' => 'Photos updated successfully',
+            'profile_picture' => $user->profile_picture,
+            'cover_picture' => $user->cover_picture
+        ]);
+    });
+
+    // --- PROPIEDADES ---
+    Route::get('/propiedades', [PropertyController::class, 'index']);
+    Route::post('/registro-propiedad', [PropertyController::class, 'store']);
+    Route::get('/map', function () {
+        // Tu código de mapa original...
+        $propiedades = \Illuminate\Support\Facades\DB::table('properties')
+            ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+            ->whereNotNull('properties.coordinates')
+            ->where('properties.coordinates', '!=', '')
+            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture')
+            ->get();
+    
+        $marcadores = $propiedades->map(function ($prop) {
+            $partes = explode(',', $prop->coordinates);
+            return [
+                'id' => $prop->prop_id,
+                'address' => $prop->address,
+                'lat' => isset($partes[0]) ? (float) trim($partes[0]) : null,
+                'lng' => isset($partes[1]) ? (float) trim($partes[1]) : null,
+                'owner_name' => $prop->name,
+                'phone' => $prop->phone,
+                'picture' => $prop->profile_picture
+            ];
+        })->filter(function ($m) { return $m['lat'] !== null && $m['lng'] !== null; })->values();
+    
+        return response()->json($marcadores);
+    });
+
+    // --- SERVICIOS Y LEVANTAMIENTOS ---
+    Route::get('/servicios', [ServiceController::class, 'index']);
+    Route::post('/servicios', [ServiceController::class, 'store']);
+    Route::get('/servicios/{id}', [App\Http\Controllers\ServiceController::class, 'show']);
+    Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
+    Route::post('/services/assign', [App\Http\Controllers\ServiceController::class, 'store']);
+    
+    Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getServices']);
+    Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [App\Http\Controllers\ServiceController::class, 'getServicesByProperty']);
+
+    // --- COTIZACIONES ---
+    Route::get('/cotizaciones', [QuoteController::class, 'index']);
+    Route::post('/cotizaciones', [QuoteController::class, 'store']);
+
+    // --- EQUIPOS Y COMPONENTES ---
+    Route::get('/appliances', [ApplianceController::class, 'index']);
+    Route::post('/appliances', [ApplianceController::class, 'store']);
+    Route::get('/catalog/summary', [PropertyComponentController::class, 'getCatalogSummary']);
+    Route::get('/catalog/details', [PropertyComponentController::class, 'getCatalogDetails']);
+    Route::get('/properties/{propertyId}/components', [App\Http\Controllers\PropertyComponentController::class, 'getComponentsByProperty']);
+
+    //Notificaciones
+Route::get('/notifications/unread', [App\Http\Controllers\NotificationController::class, 'getUnread']);
+Route::put('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+Route::get('/notifications/all', [App\Http\Controllers\NotificationController::class, 'getAll']);
+
+    ///Rutas para reagendar levantamiento
+    Route::put('/servicios/{id}/confirmar-cliente', [App\Http\Controllers\ServiceController::class, 'confirmarCitaCliente']);
+Route::put('/servicios/{id}/solicitar-reprogramacion', [App\Http\Controllers\ServiceController::class, 'solicitarReprogramacion']);
+});
+

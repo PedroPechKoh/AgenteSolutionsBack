@@ -15,6 +15,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
-        "@react-google-maps/api": "^2.20.8"
+        "@react-google-maps/api": "^2.20.8",
+        "framer-motion": "^12.38.0"
     }
 }
