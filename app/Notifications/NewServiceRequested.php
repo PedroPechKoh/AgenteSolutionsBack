@@ -28,7 +28,7 @@ class NewServiceRequested extends Notification
             'alert_type' => 'new_service_requested',
             'title' => '¡Nueva Solicitud de Levantamiento!',
             'message' => "Se ha solicitado un nuevo levantamiento (ID: #{$this->service->id}) y está esperando que le asignes un técnico.",
-            'url' => "/levantamientos" // Manda al admin directo a la tabla para asignar
+            'url' => "/levantamientos" 
         ];
     }
 }

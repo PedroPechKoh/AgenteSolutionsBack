@@ -28,7 +28,6 @@ class ServiceController extends Controller
             $servicio = new Service();
             $servicio->property_id = $request->property_id;
 
-            // Si es un cliente, forzamos que el requested_by sea él mismo
             $user = $request->user();
             if ($user && $user->role_id == 3) {
                  $servicio->requested_by = $user->id;
@@ -50,16 +49,13 @@ class ServiceController extends Controller
 
             $servicio->save();
 
-            // 👇 NOTIFICAR AL ADMIN 👇
             try {
                 $admins = User::where('role_id', 0)->get();
-                // Importante: Asegúrate de que NewServiceRequested esté importado arriba
                 Notification::send($admins, new \App\Notifications\NewServiceRequested($servicio));
             } catch (\Exception $e) {
                 \Log::error('Error al enviar notificación de nuevo servicio: ' . $e->getMessage());
             }
 
-            // 👇 LA MAGIA DE LA TABLA PIVOTE (COMPONENTES) 👇
             if ($request->has('selected_components') && is_array($request->selected_components)) {
                 $pivotData = [];
                 foreach ($request->selected_components as $componentId) {
@@ -96,18 +92,15 @@ class ServiceController extends Controller
             $user = $request->user();
             $query = Service::with(['property', 'technician'])->orderByDesc('created_at');
 
-            // 👇 FILTRO INTELIGENTE PARA CLIENTES 👇
             if ($user && $user->role_id == 3) {
-                // Buscamos el ID real del cliente
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
                 
                 if ($cliente) {
-                    // Solo traemos los servicios cuyas propiedades le pertenezcan a este cliente
                     $query->whereHas('property', function($q) use ($cliente) {
                         $q->where('client_id', $cliente->id);
                     });
                 } else {
-                    return response()->json([], 200); // Si no tiene perfil, arreglo vacío
+                    return response()->json([], 200); 
                 }
             }
 
@@ -146,20 +139,17 @@ class ServiceController extends Controller
     public function assignTechnician(Request $request, $id)
     {
         try {
-            // 👇 IMPORTANTE: Cargamos las relaciones para llegar al usuario del cliente
             $servicio = Service::with('property.client')->find($id);
 
             if (!$servicio) {
                 return response()->json(['success' => false, 'message' => 'Servicio no encontrado'], 404);
             }
 
-            // Actualizamos los campos necesarios
             $servicio->assigned_to = $request->tecnico_id;
             $servicio->scheduled_start = $request->scheduled_start;
             $servicio->status = 'Programado';
             $servicio->save();
 
-            // 👇 NUEVA LÓGICA: NOTIFICAR AL CLIENTE 👇
             if ($servicio->property && $servicio->property->client && $servicio->property->client->user_id) {
                 $clienteUser = User::find($servicio->property->client->user_id);
                 
@@ -187,7 +177,6 @@ class ServiceController extends Controller
     public function show($id)
     {
         try {
-            // 👇 AQUÍ ESTÁ LA CLAVE: Pedimos property.areas.components
             $servicio = Service::with([
                 'property.client',
                 'technician',
@@ -207,7 +196,6 @@ class ServiceController extends Controller
                 'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
                 'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
 
-                // 👇 Y AQUÍ ARMAMOS LAS TABLITAS PARA REACT 👇
                 'secciones' => $servicio->property ? $servicio->property->areas->map(function ($area) {
                     return [
                         'titulo' => $area->name,
@@ -248,15 +236,11 @@ class ServiceController extends Controller
                 return response()->json(['success' => false, 'message' => 'Servicio no encontrado'], 404);
             }
 
-            // Cambiamos el estatus a "Visita Confirmada"
             $servicio->status = 'Visita Confirmada';
             $servicio->save();
 
-            // 👇 NUEVA LÓGICA: NOTIFICAR A LOS ADMINS 👇
-            // Buscamos al Root (role_id = 0) para enviarle la alerta
             $admins = User::where('role_id', 0)->get();
             
-            // Disparamos la notificación
             Notification::send($admins, new VisitConfirmed($servicio));
 
             return response()->json([
@@ -281,28 +265,23 @@ class ServiceController extends Controller
                 return response()->json(['success' => false, 'message' => 'Servicio no encontrado'], 404);
             }
 
-            // Validamos que vengan los datos
             $request->validate([
                 'fecha_sugerida' => 'required',
                 'motivo' => 'nullable|string'
             ]);
 
-            // Formateamos el motivo para guardarlo en la descripción del servicio (o en un log/notas)
             $notaReprogramacion = "\n[ALERTA DE REPROGRAMACIÓN]: El cliente solicita cambiar la visita al: " . 
                                   $request->fecha_sugerida . ". Motivo: " . 
                                   ($request->motivo ?? 'Sin motivo especificado.');
             
             $servicio->status = 'Reprogramación Solicitada';
             
-            // Agregamos la nota al final de la descripción existente
             $servicio->description = $servicio->description . $notaReprogramacion;
             
             $servicio->save();
 
-            // 👇 ENVIAMOS AL ROOT (role_id = 0) MIENTRAS HACEMOS PRUEBAS 👇
             $admins = User::where('role_id', 0)->get();
             
-            // Disparamos la notificación
             Notification::send($admins, new RescheduleRequested($servicio, $request->fecha_sugerida));
 
             return response()->json([

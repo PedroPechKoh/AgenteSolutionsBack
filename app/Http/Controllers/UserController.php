@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
-    // =========================================================================
-    // ACTUALIZAR PERFIL DESDE REACT
-    // =========================================================================
+    
     public function updateProfile(Request $request)
     {
         try {
@@ -33,7 +31,6 @@ class UserController extends Controller
                     return response()->json(['success' => false, 'message' => 'Cliente no encontrado'], 404);
                 }
 
-                // Unimos nombre y apellido antes de guardarlo en 'name'
                 $fullName = trim($request->input('first_name') . ' ' . $request->input('last_name'));
 
                 $updateData = [
@@ -41,7 +38,6 @@ class UserController extends Controller
                     'email' => $request->input('email'),
                     'phone' => $request->input('phone_number'),
                     'is_active' => $request->input('is_active'), 
-                    // Se omitió 'address' para evitar el error de MySQL
                     'updated_at' => now(),
                 ];
 
@@ -135,7 +131,6 @@ class UserController extends Controller
    public function getUsuarios()
     {
         try {
-            // 1. OBTENER USUARIOS
             $usuariosQuery = \App\Models\User::select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number')->get();
 
             $usuarios = $usuariosQuery->map(function ($u) {
@@ -153,9 +148,7 @@ class UserController extends Controller
                 ];
             });
 
-            // 2. OBTENER CLIENTES
             $clientesQuery = DB::table('clients')
-                // Se omitió 'address' del select para evitar error 1054
                 ->select('id', 'user_id', 'name', 'email', 'phone', 'profile_picture', 'is_active')
                 ->get();
 
@@ -170,11 +163,10 @@ class UserController extends Controller
                     'is_active' => $c->is_active,
                     'profile_picture_url' => $fotoUrl,
                     'phone_number' => $c->phone,
-                    'address' => 'No registrada', // Relleno genérico
+                    'address' => 'No registrada', 
                 ];
             });
 
-            // 3. FUSIONAR Y ENVIAR
             $todosLosRegistros = $usuarios->concat($clientes);
             return response()->json($todosLosRegistros, 200);
             

@@ -28,7 +28,7 @@ class VisitConfirmed extends Notification
             'alert_type' => 'visit_confirmed',
             'title' => '¡Visita Confirmada!',
             'message' => "El cliente ha aceptado la fecha programada para el levantamiento #{$this->service->id}.",
-            'url' => "/levantamientos" // Para que el admin vaya a ver sus levantamientos
+            'url' => "/levantamientos"
         ];
     }
 }

@@ -23,7 +23,6 @@ class VisitRescheduled extends Notification
 
     public function toArray($notifiable)
     {
-        // Formateamos la fecha para que se vea bonita
         $fechaBonita = date('d/m/Y h:i A', strtotime($this->service->scheduled_start));
 
         return [
@@ -31,7 +30,7 @@ class VisitRescheduled extends Notification
             'alert_type' => 'visit_rescheduled',
             'title' => '¡Nueva fecha de visita!',
             'message' => "El administrador ha programado tu levantamiento #{$this->service->id} para el: {$fechaBonita}.",
-            'url' => "/levantamientos" // Redirige al cliente a su tabla
+            'url' => "/levantamientos" 
         ];
     }
 }

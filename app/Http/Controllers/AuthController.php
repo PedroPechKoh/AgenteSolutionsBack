@@ -14,7 +14,7 @@ class AuthController extends Controller
             'name' => 'required|string|max:191',
             'email' => 'required|string|email|max:191|unique:users',
             'password' => 'required|string|min:6',
-            'role_id' => 'required|integer' // Quitamos el 'in:0,1,2' para permitir el rol 3 (Clientes)
+            'role_id' => 'required|integer' 
         ]);
 
         $user = User::create([
@@ -25,14 +25,13 @@ class AuthController extends Controller
             'is_active' => 1 
         ]);
 
-        // Generamos el token inmediatamente después del registro
         $token = $user->createToken('AgenteToken')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Usuario creado exitosamente',
             'user' => $user,
-            'token' => $token // Enviamos el token a React
+            'token' => $token 
         ], 201);
     }
 
@@ -57,19 +56,17 @@ class AuthController extends Controller
             ], 403);
         }
 
-        // --- ¡AQUÍ ESTÁ LA MAGIA! ---
-        // Creamos un token único para esta sesión
+       
         $token = $user->createToken('AgenteToken')->plainTextToken;
 
         return response()->json([
             'success' => true,
             'message' => 'Inicio de sesión exitoso',
             'user' => $user,
-            'token' => $token // Esta es la llave que React debe guardar
+            'token' => $token 
         ], 200);
     }
 
-    // Método opcional para cerrar sesión y destruir el token
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();

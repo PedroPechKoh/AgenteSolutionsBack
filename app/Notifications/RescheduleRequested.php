@@ -20,13 +20,12 @@ class RescheduleRequested extends Notification
 
     public function via($notifiable)
     {
-        return ['database']; // Tells Laravel to save this in the DB
+        return ['database']; 
     }
 
     public function toArray($notifiable)
     {
-        // These keys are in English, but the message text goes in Spanish 
-        // because it will be printed directly in the React Frontend.
+        
         return [
             'service_id' => $this->service->id,
             'alert_type' => 'reschedule_request',

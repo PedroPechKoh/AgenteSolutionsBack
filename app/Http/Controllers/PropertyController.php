@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Property;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; // 👈 Importante para manejar archivos
+use Illuminate\Support\Facades\Storage; 
 
 class PropertyController extends Controller
 {
@@ -22,8 +22,8 @@ class PropertyController extends Controller
             'colonia' => 'required|string',
             'calle' => 'required|string',
             'numero' => 'required|string',
-            'property_name' => 'nullable|string|max:191', // 👈 Nueva validación
-            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // 👈 Validación de foto
+            'property_name' => 'nullable|string|max:191', 
+            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
         ]);
 
         $user = $request->user();
@@ -57,10 +57,8 @@ class PropertyController extends Controller
         }
         $direccion_completa .= ", Col. {$request->colonia}, {$request->municipio}, {$request->estado}";
 
-        // 👇 MANEJO DE LA FOTO 👇
         $path = null;
         if ($request->hasFile('facade_photo')) {
-            // Se guarda en storage/app/public/properties/facades
             $path = $request->file('facade_photo')->store('properties/facades', 'public');
         }
 
@@ -105,8 +103,7 @@ class PropertyController extends Controller
             $propiedades = $query->get();
 
            $formateadas = $propiedades->map(function ($p) {
-            // 👇 NUEVO: Verificamos si la propiedad tiene algún servicio activo 👇
-            // (Se considera activo si no está 'Finalizado' y no está 'Cancelado')
+            
             $tienePendiente = $p->services()
                 ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                 ->exists();
@@ -123,7 +120,6 @@ class PropertyController extends Controller
                 'coordenadas' => $p->coordinates,
                 'foto_url' => $p->facade_photo_path ? asset('storage/' . $p->facade_photo_path) : null,
                 'created_at' => $p->created_at,
-                // 👇 Agregamos esta bandera para React 👇
                 'has_pending_service' => $tienePendiente 
             ];
         });

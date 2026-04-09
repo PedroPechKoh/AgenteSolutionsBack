@@ -17,7 +17,6 @@ class NotificationController extends Controller
         ], 200);
     }
 
-    // Mark a specific notification as read
     public function markAsRead(Request $request, $id)
     {
         $notification = $request->user()->notifications()->find($id);
