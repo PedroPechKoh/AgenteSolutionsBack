@@ -12,13 +12,14 @@ use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\Api\AppSettingController;
 use App\Http\Controllers\QuoteController;
 use App\Http\Controllers\PropertyComponentController;
+use App\Http\Controllers\PropertyAreaController;
 
 // ========================================================
 // 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
 // ========================================================
 
 // 1. Logins y Registros
-Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/login', [AuthController::class, 'login']);
 Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
 // Mantuve tu registro de clientes aquí para que siga funcionando
@@ -62,7 +63,7 @@ Route::get('/ui/settings/login-settings', [AppSettingController::class, 'getLogi
 // ========================================================
 
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // --- USUARIOS Y PERFILES ---
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
@@ -74,7 +75,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- FOTOS DE PERFIL ---
     Route::post('/update-photos', function (\Illuminate\Http\Request $request) {
         $user = \App\Models\User::find($request->user_id);
-        if (!$user) return response()->json(['error' => 'User not found'], 404);
+        if (!$user)
+            return response()->json(['error' => 'User not found'], 404);
 
         if ($request->hasFile('profile_picture')) {
             $profilePath = $request->file('profile_picture')->store('profiles', 'public');
@@ -96,6 +98,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- PROPIEDADES ---
     Route::get('/propiedades', [PropertyController::class, 'index']);
     Route::post('/registro-propiedad', [PropertyController::class, 'store']);
+    Route::delete('/propiedades/{id}', [PropertyController::class, 'destroy']);
     Route::get('/map', function () {
         // Tu código de mapa original...
         $propiedades = \Illuminate\Support\Facades\DB::table('properties')
@@ -104,7 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
             ->where('properties.coordinates', '!=', '')
             ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture')
             ->get();
-    
+
         $marcadores = $propiedades->map(function ($prop) {
             $partes = explode(',', $prop->coordinates);
             return [
@@ -116,8 +119,10 @@ Route::middleware('auth:sanctum')->group(function () {
                 'phone' => $prop->phone,
                 'picture' => $prop->profile_picture
             ];
-        })->filter(function ($m) { return $m['lat'] !== null && $m['lng'] !== null; })->values();
-    
+        })->filter(function ($m) {
+            return $m['lat'] !== null && $m['lng'] !== null;
+        })->values();
+
         return response()->json($marcadores);
     });
 
@@ -127,7 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/servicios/{id}', [App\Http\Controllers\ServiceController::class, 'show']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
     Route::post('/services/assign', [App\Http\Controllers\ServiceController::class, 'store']);
-    
+
     Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getServices']);
     Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [App\Http\Controllers\ServiceController::class, 'getServicesByProperty']);
 
@@ -143,12 +148,30 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/properties/{propertyId}/components', [App\Http\Controllers\PropertyComponentController::class, 'getComponentsByProperty']);
 
     //Notificaciones
-Route::get('/notifications/unread', [App\Http\Controllers\NotificationController::class, 'getUnread']);
-Route::put('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
-Route::get('/notifications/all', [App\Http\Controllers\NotificationController::class, 'getAll']);
+    Route::get('/notifications/unread', [App\Http\Controllers\NotificationController::class, 'getUnread']);
+    Route::put('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead']);
+    Route::get('/notifications/all', [App\Http\Controllers\NotificationController::class, 'getAll']);
 
     ///Rutas para reagendar levantamiento
     Route::put('/servicios/{id}/confirmar-cliente', [App\Http\Controllers\ServiceController::class, 'confirmarCitaCliente']);
-Route::put('/servicios/{id}/solicitar-reprogramacion', [App\Http\Controllers\ServiceController::class, 'solicitarReprogramacion']);
+    Route::put('/servicios/{id}/solicitar-reprogramacion', [App\Http\Controllers\ServiceController::class, 'solicitarReprogramacion']);
 });
 
+//Tecnico
+Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getTecnicoServicios']);
+//Registro de Areas
+Route::post('/property-areas', [PropertyAreaController::class, 'store']);
+Route::get('/property-areas', [PropertyAreaController::class, 'index']);
+Route::get('/properties/{id}/areas', [PropertyAreaController::class, 'getByProperty']);
+Route::put('/property-areas/{id}', [PropertyAreaController::class, 'update']);
+Route::get('/areas/{id}/components', [PropertyComponentController::class, 'getByArea']);
+Route::post('/property-components', [PropertyComponentController::class, 'store']);
+Route::get('/areas/{id}/subareas', [App\Http\Controllers\PropertyAreaController::class, 'getSubAreas']);
+Route::get('/areas/{id}/categories', [App\Http\Controllers\PropertyCategoryController::class, 'getByArea']);
+Route::post('/property-categories', [App\Http\Controllers\PropertyCategoryController::class, 'store']);
+Route::delete('/property-components/{id}', [App\Http\Controllers\PropertyComponentController::class, 'destroy']);
+Route::put('/property-components/{id}', [App\Http\Controllers\PropertyComponentController::class, 'update']);
+Route::get('/propiedades/{id}/dashboard', [PropertyController::class, 'getDashboardData']);
+Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrder']);
+Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
+Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);

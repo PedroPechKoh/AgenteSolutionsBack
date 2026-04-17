@@ -243,6 +243,14 @@ class ServiceController extends Controller
             
             Notification::send($admins, new VisitConfirmed($servicio));
 
+            // Enviar notificación al Técnico asignado
+            if ($servicio->assigned_to) {
+                $tecnico = User::find($servicio->assigned_to);
+                if ($tecnico) {
+                    Notification::send($tecnico, new VisitConfirmed($servicio));
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Cita confirmada correctamente por el cliente.'
@@ -296,4 +304,24 @@ class ServiceController extends Controller
             ], 500);
         }
     }
+    ////Asignar trabajos al tencico:
+    public function getTecnicoServicios($idTecnico) {
+    // Usamos Join para traer los datos de la propiedad y su dueño/cliente
+    $servicios = DB::table('services')
+        ->join('properties', 'services.property_id', '=', 'properties.id')
+        ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+        ->select(
+            'services.*', 
+            'properties.property_name', 
+            'properties.address', 
+            'properties.coordinates',
+            'properties.facade_photo_path',
+            'properties.custom_curp',
+            'clients.name as client_name'
+        )
+        ->where('services.assigned_to', $idTecnico)
+        ->get();
+
+    return response()->json($servicios);
+}
     }

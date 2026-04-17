@@ -4,10 +4,95 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use App\Models\PropertyController;
+
+use App\Models\PropertyComponent;
 
 class PropertyComponentController extends Controller
 {
+    public function getByArea($areaId)
+    {
+        try {
+            $components = DB::table('property_components')
+                ->where('property_area_id', $areaId)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            foreach ($components as $component) {
+                $component->galleries = DB::table('component_galleries')
+                    ->where('property_component_id', $component->id)
+                    ->get();
+            }
+
+            return response()->json($components, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function store(Request $request)
+    {
+        try {
+            // Validación (agregamos la imagen)
+            $request->validate([
+                'property_area_id' => 'required',
+                'category' => 'required|string',
+                'sub_category' => 'required|string',
+                'quantity' => 'required|numeric',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+            ]);
+
+            // Lógica para la imagen
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $imagePath = $file->storeAs('componentes', $filename, 'public');
+            }
+
+            // Insertar en BD
+            $id = DB::table('property_components')->insertGetId([
+                'property_area_id' => $request->property_area_id,
+                'category' => $request->category,
+                'sub_category' => $request->sub_category,
+                'brand' => $request->brand ?? '',
+                'model_or_color' => $request->model_or_color ?? '',
+                'serial_number' => $request->serial_number ?? '',
+                'quantity' => $request->quantity,
+                'unit' => $request->unit ?? 'PZA',
+                'status' => $request->status ?? 'Bueno',
+                'observations' => $request->observations ?? '',
+                'image_path' => $imagePath, // Guardamos la ruta
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            if ($request->hasFile('gallery')) {
+                foreach ($request->file('gallery') as $file) {
+                    $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+                    $path = $file->storeAs('componentes/galeria', $filename, 'public');
+
+                    DB::table('component_galleries')->insert([
+                        'property_component_id' => $id,
+                        'image_path' => $path,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return response()->json(['success' => true, 'id' => $id], 201);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ==========================================================
+     * TUS FUNCIONES ORIGINALES (SIN MODIFICAR)
+     * ==========================================================
+     */
+
     public function getCatalogSummary()
     {
         try {
@@ -43,6 +128,7 @@ class PropertyComponentController extends Controller
             ], 500);
         }
     }
+
     public function getCatalogDetails(Request $request)
     {
         $brand = $request->query('brand');
@@ -92,6 +178,7 @@ class PropertyComponentController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
     public function getComponentsByProperty($propertyId)
     {
         try {
@@ -122,6 +209,63 @@ class PropertyComponentController extends Controller
                 'message' => 'Error al obtener los componentes de la propiedad',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+    public function destroy($id)
+    {
+        try {
+            DB::table('property_components')->where('id', $id)->delete();
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        try {
+            $component = DB::table('property_components')->where('id', $id)->first();
+            if (!$component) {
+                return response()->json(['error' => 'No encontrado'], 404);
+            }
+
+            // Lógica de la imagen (Si mandan una nueva, reemplaza la vieja)
+            $imagePath = $component->image_path;
+            if ($request->hasFile('image')) {
+                $file = $request->file('image');
+                $filename = time() . '_' . $file->getClientOriginalName();
+                $imagePath = $file->storeAs('componentes', $filename, 'public');
+            }
+
+            DB::table('property_components')->where('id', $id)->update([
+                'sub_category' => $request->sub_category,
+                'brand' => $request->brand ?? '',
+                'model_or_color' => $request->model_or_color ?? '',
+                'serial_number' => $request->serial_number ?? '',
+                'quantity' => $request->quantity,
+                'observations' => $request->observations ?? '',
+                'image_path' => $imagePath,
+                'updated_at' => now(),
+            ]);
+
+            // Guardar nuevas fotos en la galería al editar
+            if ($request->hasFile('gallery')) {
+                foreach ($request->file('gallery') as $file) {
+                    $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
+                    $path = $file->storeAs('componentes/galeria', $filename, 'public');
+
+                    DB::table('component_galleries')->insert([
+                        'property_component_id' => $id,
+                        'image_path' => $path,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                }
+            }
+
+            return response()->json(['success' => true], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 }

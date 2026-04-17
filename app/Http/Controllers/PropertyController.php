@@ -6,7 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Property;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; 
+use Illuminate\Support\Facades\Storage;
 
 class PropertyController extends Controller
 {
@@ -22,8 +22,8 @@ class PropertyController extends Controller
             'colonia' => 'required|string',
             'calle' => 'required|string',
             'numero' => 'required|string',
-            'property_name' => 'nullable|string|max:191', 
-            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
+            'property_name' => 'nullable|string|max:191',
+            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
         $user = $request->user();
@@ -36,7 +36,7 @@ class PropertyController extends Controller
             }
             $clientId = $cliente->id;
         } else {
-            $clientId = $request->client_id; 
+            $clientId = $request->client_id;
         }
 
         // Lógica de CURP Personalizado (se mantiene igual)
@@ -69,11 +69,11 @@ class PropertyController extends Controller
         $property->address = $direccion_completa;
         $property->coordinates = $request->coordinates;
         $property->custom_curp = $custom_curp;
-        
+
         // 👇 ASIGNACIÓN DE CAMPOS NUEVOS 👇
         $property->property_name = $request->property_name;
         $property->facade_photo_path = $path;
-        
+
         $property->save();
 
         return response()->json([
@@ -94,40 +94,182 @@ class PropertyController extends Controller
             if ($user->role_id == 3) {
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
                 if ($cliente) {
-                    $query->where('client_id', $cliente->id); 
+                    $query->where('client_id', $cliente->id);
                 } else {
-                    return response()->json([], 200); 
+                    return response()->json([], 200);
                 }
             }
 
             $propiedades = $query->get();
 
-           $formateadas = $propiedades->map(function ($p) {
-            
-            $tienePendiente = $p->services()
-                ->whereNotIn('status', ['Finalizado', 'Cancelado'])
-                ->exists();
+            $formateadas = $propiedades->map(function ($p) {
 
-            return [
-                'id' => $p->id,
-                'client_id' => $p->client_id, 
-                'propietario' => $p->client ? $p->client->name : 'Sin Propietario',
-                'nombre_propiedad' => $p->property_name ?? 'Propiedad sin nombre',
-                'direccion' => $p->address,
-                'fecha' => $p->created_at ? $p->created_at->format('Y-m-d') : 'Sin fecha',
-                'tipo' => strtoupper($p->type),
-                'curp' => $p->custom_curp,
-                'coordenadas' => $p->coordinates,
-                'foto_url' => $p->facade_photo_path ? asset('storage/' . $p->facade_photo_path) : null,
-                'created_at' => $p->created_at,
-                'has_pending_service' => $tienePendiente 
-            ];
-        });
+                $tienePendiente = $p->services()
+                    ->whereNotIn('status', ['Finalizado', 'Cancelado'])
+                    ->exists();
+
+                return [
+                    'id' => $p->id,
+                    'client_id' => $p->client_id,
+                    'propietario' => $p->client ? $p->client->name : 'Sin Propietario',
+                    'nombre_propiedad' => $p->property_name ?? 'Propiedad sin nombre',
+                    'direccion' => $p->address,
+                    'fecha' => $p->created_at ? $p->created_at->format('Y-m-d') : 'Sin fecha',
+                    'tipo' => strtoupper($p->type),
+                    'curp' => $p->custom_curp,
+                    'coordenadas' => $p->coordinates,
+                    'foto_url' => $p->facade_photo_path ? asset('storage/' . $p->facade_photo_path) : null,
+                    'created_at' => $p->created_at,
+                    'has_pending_service' => $tienePendiente
+                ];
+            });
 
             return response()->json($formateadas, 200);
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al cargar propiedades: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // ---------------------------------------------------
+    // 3. ELIMINAR PROPIEDAD
+    // ---------------------------------------------------
+    public function destroy($id)
+    {
+        try {
+            $property = Property::findOrFail($id);
+
+            // Eliminar foto de fachada si existe
+            if ($property->facade_photo_path) {
+                Storage::disk('public')->delete($property->facade_photo_path);
+            }
+
+            $property->delete();
+
+            return response()->json(['message' => 'Propiedad eliminada con éxito'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al eliminar la propiedad: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getDashboardData($id)
+    {
+        try {
+            $propiedad = DB::table('properties')->where('id', $id)->first();
+            if (!$propiedad)
+                return response()->json(['error' => 'No encontrada'], 404);
+
+            // 1. Contamos los estados de las órdenes de trabajo normales ('Por Hacer', 'En Proceso', 'Listo')
+            $stats = DB::table('work_orders')
+                ->where('property_id', $id)
+                ->select('status', DB::raw('count(*) as total'))
+                ->groupBy('status')
+                ->get()
+                ->pluck('total', 'status');
+
+            // 2. Calculamos los SOS (Órdenes que no están listas y tienen prioridad Urgente)
+            $sosCount = DB::table('work_orders')
+                ->where('property_id', $id)
+                ->where('status', '!=', 'Listo')
+                ->where('priority', 'Urgente')
+                ->count();
+
+            // 3. Historial (Últimos 5 trabajos terminados)
+            $historial = DB::table('work_orders')
+                ->leftJoin('users', 'work_orders.tecnico_id', '=', 'users.id')
+                ->where('work_orders.property_id', $id)
+                ->where('work_orders.status', 'Listo')
+                // 👇 AQUÍ ESTÁ LA MAGIA: Unimos first_name y last_name con un espacio en medio
+                ->select('work_orders.*', DB::raw("CONCAT(users.first_name, ' ', users.last_name) as tecnico_nombre"))
+                ->orderBy('work_orders.updated_at', 'desc')
+                ->limit(5)
+                ->get();
+
+            // (Si no tienes tabla de cotizaciones, mandamos 0 temporalmente)
+            $cotizacionesCount = 0;
+            $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
+
+            // Si hay tareas, sacamos el porcentaje de las listas. Si no hay, es 0%.
+            $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
+            return response()->json([
+                'propiedad' => $propiedad,
+                'stats' => [
+                    'sos' => $sosCount,
+                    'pendientes' => $stats['Por Hacer'] ?? 0,
+                    'proceso' => $stats['En Proceso'] ?? 0,
+                    'listos' => $stats['Listo'] ?? 0,
+                ],
+                'historial' => $historial,
+                'cotizaciones_pendientes' => $cotizacionesCount,
+                'avance_obra' => $avanceObra
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    public function storeWorkOrder(Request $request)
+    {
+        try {
+            // 1. Manejo de la foto de evidencia (Opcional)
+            $path = null;
+            if ($request->hasFile('foto')) {
+                // Guarda la foto en storage/app/public/work_orders
+                $path = $request->file('foto')->store('work_orders', 'public');
+            }
+
+            // 2. Insertar en la nueva tabla
+            $id = DB::table('work_orders')->insertGetId([
+                'property_id' => $request->property_id,
+                'zone' => $request->zona,
+                'equipment' => $request->equipo,
+                'description' => $request->descripcion,
+                'evidence_path' => $path,
+                'status' => 'Por Hacer', // Siempre inicia así
+                'priority' => 'Normal',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return response()->json(['success' => true, 'id' => $id], 201);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    public function getWorkOrders($id)
+    {
+        try {
+            $orders = DB::table('work_orders')
+                ->leftJoin('users', 'work_orders.tecnico_id', '=', 'users.id')
+                ->where('work_orders.property_id', $id)
+                ->select(
+                    'work_orders.*',
+                    DB::raw("CONCAT(users.first_name, ' ', users.last_name) as tecnico_nombre")
+                )
+                ->get();
+
+            return response()->json($orders);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+    public function updateWorkOrderStatus(Request $request, $id)
+    {
+        try {
+            // Validamos que el estatus que nos mandan sea uno válido
+            $request->validate([
+                'status' => 'required|in:Por Hacer,En Proceso,Listo'
+            ]);
+
+            DB::table('work_orders')->where('id', $id)->update([
+                'status' => $request->status,
+                'updated_at' => now()
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Estado actualizado']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 }
