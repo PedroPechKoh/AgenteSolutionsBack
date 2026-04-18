@@ -3,35 +3,51 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 use Illuminate\Support\Facades\DB;
+// IMPORTANTE: Cambiamos el import para usar el motor puro de Cloudinary, no el Facade de Laravel
+use Cloudinary\Cloudinary;
 
 class ImageController extends Controller
 {
     public function uploadProfilePicture(Request $request)
     {
-        // 1. Validamos que el archivo sea una imagen real y pese menos de 2MB
+        // 1. Validamos
         $request->validate([
             'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
         ]);
 
         try {
-            // 2. Subimos la imagen a la nube
-            $uploadedFileUrl = Cloudinary::upload($request->file('image')->getRealPath(), [
-                'folder' => 'agente_perfiles'
-            ])->getSecurePath();
+            // 2. LA OPCIÓN NUCLEAR: Instanciamos Cloudinary directamente
+            // Esto se salta TODO el caché de Railway y Laravel
+            $cloudinary = new Cloudinary(env('CLOUDINARY_URL', 'cloudinary://942191234587844:VmNYB6w4vj3DdLql9SZSKVofOi0@dcj5rcpi8'));
 
-            // 3. Devolvemos la URL segura a React
+            // 3. Subimos la imagen usando la API directa
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                'folder' => 'agente_perfiles'
+            ]);
+
+            // 4. Extraemos la URL mágica
+            $uploadedFileUrl = $respuestaNube['secure_url'];
+
+            // 5. Detectamos qué estamos subiendo (perfil o portada) gracias a tu React
+            $tipoCampo = $request->input('type', 'profile_picture');
+
+            // 6. Guardamos la URL en la columna correcta del usuario
+            DB::table('users')->where('id', auth()->id())->update([
+                $tipoCampo => $uploadedFileUrl
+            ]);
+
+            // 7. Retornamos éxito a React
             return response()->json([
-                'message' => '¡Imagen subida con éxito!',
+                'message' => '¡Victoria contra Railway!',
                 'url' => $uploadedFileUrl
             ], 200);
 
         } catch (\Exception $e) {
             return response()->json([
-                'error' => 'Error interno al subir: ' . $e->getMessage(),
-                'archivo_fallido' => $e->getFile(),
-                'linea_exacta' => $e->getLine()
+                'error' => 'Error interno: ' . $e->getMessage(),
+                'archivo' => $e->getFile(),
+                'linea' => $e->getLine()
             ], 500);
         }
     }
