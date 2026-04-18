@@ -179,3 +179,9 @@ Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrde
 Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
 Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
 Route::get('/propiedades', [PropertyController::class, 'index']);
+
+//Subir imagenes
+use App\Http\Controllers\ImageController;
+
+// Ruta para subir fotos a Cloudinary
+Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
