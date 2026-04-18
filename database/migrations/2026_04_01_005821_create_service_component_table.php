@@ -13,8 +13,7 @@ return new class extends Migration {
         Schema::create('service_component', function (Blueprint $table) {
             $table->id();
             $table->foreignId('service_id')->constrained('services')->onDelete('cascade');
-            $table->foreignId('property_component_id')->constrained('property_components')->onDelete('cascade');
-            $table->text('notes')->nullable();
+$table->foreignId('property_component_id')->constrained('appliances')->onDelete('cascade');            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }
