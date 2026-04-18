@@ -28,7 +28,6 @@ class ImageController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            // Ahora Laravel nos dirá el chisme completo
             return response()->json([
                 'error' => 'Error interno al subir: ' . $e->getMessage(),
                 'archivo_fallido' => $e->getFile(),
