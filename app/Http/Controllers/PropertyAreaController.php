@@ -82,9 +82,14 @@ class PropertyAreaController extends Controller
         $area = PropertyArea::findOrFail($id);
 
         $request->validate([
+            'name' => 'nullable|string|max:191',
             'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
             'description' => 'nullable|string'
         ]);
+
+        if ($request->has('name')) {
+            $area->name = $request->name;
+        }
 
         if ($request->has('description')) {
             $area->description = $request->description;
@@ -103,5 +108,26 @@ class PropertyAreaController extends Controller
             'success' => true,
             'area' => $area
         ], 200);
+    }
+
+    /**
+     * Eliminar una zona.
+     * DELETE /api/property-areas/{id}
+     */
+    public function destroy($id)
+    {
+        try {
+            $area = PropertyArea::findOrFail($id);
+            // Si la eliminación debe borrar las sub-áreas y componentes en cascada, 
+            // esto dependerá de las reglas foreign key (onDelete cascada) en la migración.
+            $area->delete();
+            return response()->json(['success' => true, 'message' => 'Área eliminada correctamente'], 200);
+        } catch (\Exception $e) {
+            Log::error("Error al eliminar área: " . $e->getMessage());
+            return response()->json([
+                'error' => 'No se pudo eliminar el área',
+                'description' => $e->getMessage()
+            ], 500);
+        }
     }
 }

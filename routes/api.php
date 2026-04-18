@@ -164,6 +164,7 @@ Route::post('/property-areas', [PropertyAreaController::class, 'store']);
 Route::get('/property-areas', [PropertyAreaController::class, 'index']);
 Route::get('/properties/{id}/areas', [PropertyAreaController::class, 'getByProperty']);
 Route::put('/property-areas/{id}', [PropertyAreaController::class, 'update']);
+Route::delete('/property-areas/{id}', [PropertyAreaController::class, 'destroy']);
 Route::get('/areas/{id}/components', [PropertyComponentController::class, 'getByArea']);
 Route::post('/property-components', [PropertyComponentController::class, 'store']);
 Route::get('/areas/{id}/subareas', [App\Http\Controllers\PropertyAreaController::class, 'getSubAreas']);
