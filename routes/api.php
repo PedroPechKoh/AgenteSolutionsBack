@@ -25,31 +25,29 @@ Route::post('/registro-usuario', [AuthController::class, 'registro']);
 // Mantuve tu registro de clientes aquí para que siga funcionando
 Route::post('/public-client-register', function (Request $request) {
     return DB::transaction(function () use ($request) {
-        // Combinamos los nombres para las tablas que solo tienen 'name'
         $nombreCompleto = trim($request->first_name . ' ' . $request->last_name);
 
-        // 1. Insertamos en 'users'
+        // 1. Insertamos en 'users' (Solo lo básico que tiene Laravel por defecto)
         $userId = DB::table('users')->insertGetId([
             'role_id' => 3,
-            'name' => $nombreCompleto, // Cambiamos first_name/last_name por name
-            'email' => $request->email,
-            // 'phone_number' => $request->phone, // Si falla, comenta esta línea también
+            'name'    => $nombreCompleto,
+            'email'   => $request->email,
             'password' => Hash::make($request->password),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        // 2. Insertamos en 'clients'
+        // 2. Insertamos en 'clients' 
+        // Nota: Asegúrate que la tabla 'clients' exista en Railway
         DB::table('clients')->insert([
-            // 'user_id' => $userId, // Comentado porque tu tabla en Railway no lo tiene
-            'name' => $nombreCompleto,
+            'name'  => $nombreCompleto,
             'email' => $request->email,
             'phone' => $request->phone,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        return response()->json(['message' => 'Cliente y Usuario creados con éxito']);
+        return response()->json(['message' => '¡Éxito! Usuario y Cliente creados.']);
     });
 });
 
