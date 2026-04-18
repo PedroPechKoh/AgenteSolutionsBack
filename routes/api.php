@@ -23,32 +23,37 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
 // Mantuve tu registro de clientes aquí para que siga funcionando
-Route::post('/public-client-register', function (Request $request) {
-    return DB::transaction(function () use ($request) {
-        $nombreCompleto = trim($request->first_name . ' ' . $request->last_name);
+Route::post('/public-client-register', function (Illuminate\Http\Request $request) {
+    try {
+        return DB::transaction(function () use ($request) {
+            // 1. Creamos el usuario
+            // Nota: Si 'name' falla, intenta cambiarlo por 'first_name' y 'last_name' 
+            // según lo que diga tu DESCRIBE users;
+            $userId = DB::table('users')->insertGetId([
+                'role_id' => 3,
+                'name' => trim($request->name),
+                'email' => $request->email,
+                'password' => Hash::make($request->password),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        // 1. Insertamos en 'users' (Solo lo básico que tiene Laravel por defecto)
-        $userId = DB::table('users')->insertGetId([
-            'role_id' => 3,
-            'name'    => $nombreCompleto,
-            'email'   => $request->email,
-            'password' => Hash::make($request->password),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            // 2. Insertamos en clientes
+            DB::table('clients')->insert([
+                'user_id' => $userId,
+                'name' => trim($request->name),
+                'email' => $request->email,
+                'phone' => $request->phone, // Asegúrate que sea 'phone' y no 'phone_number'
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        // 2. Insertamos en 'clients' 
-        // Nota: Asegúrate que la tabla 'clients' exista en Railway
-        DB::table('clients')->insert([
-            'name'  => $nombreCompleto,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-
-        return response()->json(['message' => '¡Éxito! Usuario y Cliente creados.']);
-    });
+            return response()->json(['message' => '¡Registro exitoso!']);
+        });
+    } catch (\Exception $e) {
+        // Esto nos enviará el error real de SQL al navegador
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
 });
 
 // Rutas para Personalizar Login (Es normal que sean públicas para que se vean antes de entrar)
@@ -175,4 +180,4 @@ Route::get('/propiedades/{id}/dashboard', [PropertyController::class, 'getDashbo
 Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrder']);
 Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
 Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
-    Route::get('/propiedades', [PropertyController::class, 'index']);
+Route::get('/propiedades', [PropertyController::class, 'index']);
