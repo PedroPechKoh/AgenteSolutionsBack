@@ -26,32 +26,30 @@ Route::post('/registro-usuario', [AuthController::class, 'registro']);
 Route::post('/public-client-register', function (Illuminate\Http\Request $request) {
     try {
         return DB::transaction(function () use ($request) {
-            // 1. Creamos el usuario
-            // Nota: Si 'name' falla, intenta cambiarlo por 'first_name' y 'last_name' 
-            // según lo que diga tu DESCRIBE users;
+            // 1. Creamos el usuario (Ajustado a tus columnas de users)
             $userId = DB::table('users')->insertGetId([
                 'role_id' => 3,
-                'name' => trim($request->name),
+                'name' => trim($request->name), // Enviamos el nombre completo
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
+                'is_active' => 1,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // 2. Insertamos en clientes
+            // 2. Insertamos en clientes (SIN user_id porque tu tabla no lo tiene)
             DB::table('clients')->insert([
-                'user_id' => $userId,
                 'name' => trim($request->name),
                 'email' => $request->email,
-                'phone' => $request->phone, // Asegúrate que sea 'phone' y no 'phone_number'
+                'phone' => $request->phone,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            return response()->json(['message' => '¡Registro exitoso!']);
+            return response()->json(['message' => '¡Registro exitoso, Pedro!']);
         });
     } catch (\Exception $e) {
-        // Esto nos enviará el error real de SQL al navegador
+        // Esto te dirá el error real si algo más falla
         return response()->json(['error' => $e->getMessage()], 500);
     }
 });
