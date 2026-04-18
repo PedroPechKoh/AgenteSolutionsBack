@@ -1,5 +1,5 @@
 <?php
-
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ApplianceController;
@@ -185,3 +185,12 @@ use App\Http\Controllers\ImageController;
 
 // Ruta para subir fotos a Cloudinary
 Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
+
+
+Route::get('/limpiar-cache', function() {
+    Artisan::call('config:clear');
+    Artisan::call('cache:clear');
+    Artisan::call('route:clear');
+    Artisan::call('view:clear');
+    return response()->json(['message' => '¡Memoria de Railway reseteada con éxito!']);
+});
