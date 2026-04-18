@@ -25,21 +25,23 @@ Route::post('/registro-usuario', [AuthController::class, 'registro']);
 // Mantuve tu registro de clientes aquí para que siga funcionando
 Route::post('/public-client-register', function (Request $request) {
     return DB::transaction(function () use ($request) {
+        // Combinamos los nombres para las tablas que solo tienen 'name'
+        $nombreCompleto = trim($request->first_name . ' ' . $request->last_name);
+
+        // 1. Insertamos en 'users'
         $userId = DB::table('users')->insertGetId([
             'role_id' => 3,
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
+            'name' => $nombreCompleto, // Cambiamos first_name/last_name por name
             'email' => $request->email,
-            'phone_number' => $request->phone,
+            // 'phone_number' => $request->phone, // Si falla, comenta esta línea también
             'password' => Hash::make($request->password),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
-        $nombreCompleto = trim($request->first_name . ' ' . $request->last_name);
-
+        // 2. Insertamos en 'clients'
         DB::table('clients')->insert([
-            'user_id' => $userId,
+            // 'user_id' => $userId, // Comentado porque tu tabla en Railway no lo tiene
             'name' => $nombreCompleto,
             'email' => $request->email,
             'phone' => $request->phone,
