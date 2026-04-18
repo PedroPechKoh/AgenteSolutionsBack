@@ -19,7 +19,7 @@ class ImageController extends Controller
         try {
             // 2. LA OPCIÓN NUCLEAR: Instanciamos Cloudinary directamente
             // Esto se salta TODO el caché de Railway y Laravel
-            $cloudinary = new Cloudinary(env('CLOUDINARY_URL', 'cloudinary://942191234587844:VmNYB6w4vj3DdLql9SZSKVofOi0@dcj5rcpi8'));
+            $cloudinary = new Cloudinary(env('CLOUDINARY_URL', 'cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0'));
 
             // 3. Subimos la imagen usando la API directa
             $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
