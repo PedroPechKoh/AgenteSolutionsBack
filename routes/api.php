@@ -96,7 +96,6 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // --- PROPIEDADES ---
-    Route::get('/propiedades', [PropertyController::class, 'index']);
     Route::post('/registro-propiedad', [PropertyController::class, 'store']);
     Route::delete('/propiedades/{id}', [PropertyController::class, 'destroy']);
     Route::get('/map', function () {
@@ -176,3 +175,4 @@ Route::get('/propiedades/{id}/dashboard', [PropertyController::class, 'getDashbo
 Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrder']);
 Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
 Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
+    Route::get('/propiedades', [PropertyController::class, 'index']);
