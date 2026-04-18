@@ -6,11 +6,13 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
- public function up()
+public function up()
 {
-    Schema::table('services', function (Blueprint $table) {
-        $table->string('supervisor_name')->nullable()->after('status');
-    });
+    if (!Schema::hasColumn('services', 'supervisor_name')) {
+        Schema::table('services', function (Blueprint $table) {
+            $table->string('supervisor_name')->nullable()->after('status');
+        });
+    }
 }
 
     /**
