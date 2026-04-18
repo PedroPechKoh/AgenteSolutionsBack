@@ -7,9 +7,11 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {public function up()
 {
-    Schema::table('properties', function (Blueprint $table) {
-        $table->string('estado')->after('type')->nullable(); 
-    });
+    if (!Schema::hasColumn('properties', 'estado')) {
+        Schema::table('properties', function (Blueprint $table) {
+            $table->string('estado')->after('type')->nullable(); 
+        });
+    }
 }
 
 public function down()

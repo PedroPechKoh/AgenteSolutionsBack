@@ -11,14 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('app_settings', function (Blueprint $table) {
-            $table->id();
-            // 👇 'setting_key' será el nombre, ej: 'login_background'
-            $table->string('setting_key')->unique(); 
-            // 👇 'setting_value' guardará la ruta de la imagen o el texto
-            $table->text('setting_value')->nullable(); 
-            $table->timestamps();
-        });
+        if (!Schema::hasTable('app_settings')) {
+            Schema::create('app_settings', function (Blueprint $table) {
+                $table->id();
+                // 👇 'setting_key' será el nombre, ej: 'login_background'
+                $table->string('setting_key')->unique(); 
+                // 👇 'setting_value' guardará la ruta de la imagen o el texto
+                $table->text('setting_value')->nullable(); 
+                $table->timestamps();
+            });
+        }
     }
 
     /**
