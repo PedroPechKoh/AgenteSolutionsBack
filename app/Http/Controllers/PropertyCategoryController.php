@@ -10,6 +10,10 @@ class PropertyCategoryController extends Controller
     public function getByArea($areaId)
     {
         try {
+            // ✅ Protección de Sanctum (Gafete requerido)
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $categories = DB::table('property_maintenance_categories')
                 ->where('property_area_id', $areaId)
                 ->get();
@@ -21,12 +25,16 @@ class PropertyCategoryController extends Controller
 
     public function store(Request $request)
     {
-        $request->validate([
-            'property_area_id' => 'required',
-            'name' => 'required|string|max:100'
-        ]);
-
         try {
+            // ✅ Protección de Sanctum (Gafete requerido)
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            $request->validate([
+                'property_area_id' => 'required',
+                'name' => 'required|string|max:100'
+            ]);
+
             $id = DB::table('property_maintenance_categories')->insertGetId([
                 'property_area_id' => $request->property_area_id,
                 'name' => strtoupper($request->name),
