@@ -33,10 +33,22 @@ class ImageController extends Controller
             // 5. Detectamos qué estamos subiendo (perfil o portada) gracias a tu React
             $tipoCampo = $request->input('type', 'profile_picture');
 
-            // 6. Guardamos la URL en la columna correcta del usuario
-            DB::table('users')->where('id', auth()->id())->update([
-                $tipoCampo => $uploadedFileUrl
-            ]);
+          // 6. Guardamos la URL en la columna correcta del usuario
+            $userId = auth()->id();
+
+            // Trampa de seguridad: Si no hay ID, lanzamos error
+            if (!$userId) {
+                throw new \Exception('No se detectó el ID del usuario. Laravel no sabe quién eres.');
+            }
+
+            // Usamos el modelo Eloquent para guardar
+            $user = \App\Models\User::find($userId);
+            if ($user) {
+                $user->$tipoCampo = $uploadedFileUrl;
+                $user->save();
+            } else {
+                throw new \Exception('Usuario no encontrado en la base de datos.');
+            }
 
             // 7. Retornamos éxito a React
             return response()->json([

@@ -22,7 +22,8 @@ use HasApiTokens, HasFactory, Notifiable;
         'email',
         'password',
         'is_active',
-        'profile_picture', 
+        'profile_picture',
+        'cover_picture', 
     ];
 
     /**

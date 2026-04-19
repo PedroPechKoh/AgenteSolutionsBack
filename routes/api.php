@@ -75,6 +75,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
     Route::get('/usuarios/tecnicos', [UserController::class, 'getTecnicos']);
 
+    // Ruta para subir fotos a Cloudinary
+Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
+
+
+
     // --- FOTOS DE PERFIL ---
     Route::post('/update-photos', function (\Illuminate\Http\Request $request) {
         $user = \App\Models\User::find($request->user_id);
@@ -182,9 +187,6 @@ Route::get('/propiedades', [PropertyController::class, 'index']);
 
 //Subir imagenes
 use App\Http\Controllers\ImageController;
-
-// Ruta para subir fotos a Cloudinary
-Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
 
 
 Route::get('/limpiar-cache', function() {
