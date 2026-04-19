@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\PropertyArea;
 use App\Models\PropertyComponent;
 use Illuminate\Support\Facades\Log;
+// Importamos la Opción Nuclear de Cloudinary
+use Cloudinary\Cloudinary;
 
 class PropertyAreaController extends Controller
 {
@@ -16,6 +18,10 @@ class PropertyAreaController extends Controller
     public function getByProperty($propertyId)
     {
         try {
+            // Protección de Sanctum
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $areas = PropertyArea::where('property_id', $propertyId)
                 ->whereNull('parent_id')
                 ->orderBy('created_at', 'desc')
@@ -36,11 +42,14 @@ class PropertyAreaController extends Controller
      */
     public function store(Request $request)
     {
+        // Protección de Sanctum
+        $user = auth('sanctum')->user();
+        if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
         $request->validate([
             'property_id' => 'required|exists:properties,id',
             'name' => 'required|string|max:191',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // Validación de imagen
-
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // 10MB
         ]);
 
         $area = new PropertyArea();
@@ -49,13 +58,20 @@ class PropertyAreaController extends Controller
         $area->parent_id = $request->parent_id ?? null;
         $area->description = $request->description ?? '';
 
-        // LÓGICA PARA LA IMAGEN
+        // --- SUBIDA A CLOUDINARY ---
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = time() . '_' . $file->getClientOriginalName();
-            // Se guarda en storage/app/public/zonas
-            $path = $file->storeAs('zonas', $filename, 'public');
-            $area->image_path = $path;
+            try {
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_zonas' // Carpeta específica para las áreas
+                ]);
+                // Guardamos la URL absoluta
+                $area->image_path = $respuestaNube['secure_url'];
+            } catch (\Exception $e) {
+                Log::error("Error subiendo zona a Cloudinary: " . $e->getMessage());
+                // Si falla la nube, no guardamos la zona y avisamos
+                return response()->json(['error' => 'Fallo al subir la imagen a la nube'], 500);
+            }
         }
 
         $area->save();
@@ -65,8 +81,13 @@ class PropertyAreaController extends Controller
             'area' => $area
         ], 201);
     }
+    
     public function getSubAreas($parentId)
     {
+        // Protección de Sanctum
+        $user = auth('sanctum')->user();
+        if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
         $subareas = PropertyArea::where('parent_id', $parentId)
             ->orderBy('created_at', 'desc')
             ->get();
@@ -79,11 +100,15 @@ class PropertyAreaController extends Controller
      */
     public function update(Request $request, $id)
     {
+        // Protección de Sanctum
+        $user = auth('sanctum')->user();
+        if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
         $area = PropertyArea::findOrFail($id);
 
         $request->validate([
             'name' => 'nullable|string|max:191',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
             'description' => 'nullable|string'
         ]);
 
@@ -95,11 +120,18 @@ class PropertyAreaController extends Controller
             $area->description = $request->description;
         }
 
+        // --- SUBIDA A CLOUDINARY (Al editar) ---
         if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $filename = time() . '_' . $file->getClientOriginalName();
-            $path = $file->storeAs('zonas', $filename, 'public');
-            $area->image_path = $path;
+            try {
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_zonas'
+                ]);
+                $area->image_path = $respuestaNube['secure_url'];
+            } catch (\Exception $e) {
+                Log::error("Error subiendo zona a Cloudinary en Update: " . $e->getMessage());
+                return response()->json(['error' => 'Fallo al subir la imagen a la nube'], 500);
+            }
         }
 
         $area->save();
@@ -117,9 +149,11 @@ class PropertyAreaController extends Controller
     public function destroy($id)
     {
         try {
+            // Protección de Sanctum
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $area = PropertyArea::findOrFail($id);
-            // Si la eliminación debe borrar las sub-áreas y componentes en cascada, 
-            // esto dependerá de las reglas foreign key (onDelete cascada) en la migración.
             $area->delete();
             return response()->json(['success' => true, 'message' => 'Área eliminada correctamente'], 200);
         } catch (\Exception $e) {
