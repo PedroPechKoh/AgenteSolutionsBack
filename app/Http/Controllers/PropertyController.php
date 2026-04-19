@@ -26,7 +26,12 @@ class PropertyController extends Controller
             'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $user = $request->user();
+        // FORZAMOS LA LECTURA DESDE SANCTUM
+        $user = auth('sanctum')->user();
+        if (!$user) {
+            return response()->json(['error' => 'No autorizado. Token inválido o ausente.'], 401);
+        }
+
         $clientId = null;
 
         if ($user->role_id == 3) {
@@ -39,7 +44,7 @@ class PropertyController extends Controller
             $clientId = $request->client_id;
         }
 
-        // Lógica de CURP Personalizado (se mantiene igual)
+        // Lógica de CURP Personalizado
         $tipo = strtoupper(substr($request->type, 0, 2));
         $estado_limpio = Str::ascii($request->estado);
         $estado_curp = strtoupper(substr($estado_limpio, 0, 3));
@@ -70,7 +75,6 @@ class PropertyController extends Controller
         $property->coordinates = $request->coordinates;
         $property->custom_curp = $custom_curp;
 
-        // 👇 ASIGNACIÓN DE CAMPOS NUEVOS 👇
         $property->property_name = $request->property_name;
         $property->facade_photo_path = $path;
 
@@ -88,23 +92,32 @@ class PropertyController extends Controller
     public function index(Request $request)
     {
         try {
-            $user = $request->user();
+            // FORZAMOS LA LECTURA DESDE SANCTUM
+            $user = auth('sanctum')->user();
+
+            if (!$user) {
+                return response()->json([
+                    'error' => 'No autorizado. El token es inválido o no se recibió correctamente.'
+                ], 401);
+            }
+
             $query = Property::with('client')->orderByDesc('created_at');
 
+            // Filtrado basado en el rol
             if ($user->role_id == 3) {
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
                 if ($cliente) {
                     $query->where('client_id', $cliente->id);
                 } else {
-                    return response()->json([], 200);
+                    return response()->json([], 200); // Cliente sin perfil = 0 propiedades
                 }
             }
 
             $propiedades = $query->get();
 
             $formateadas = $propiedades->map(function ($p) {
-
-                $tienePendiente = $p->services()
+                $tienePendiente = DB::table('services')
+                    ->where('property_id', $p->id)
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                     ->exists();
 
@@ -137,6 +150,11 @@ class PropertyController extends Controller
     public function destroy($id)
     {
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) {
+                return response()->json(['error' => 'No autorizado.'], 401);
+            }
+
             $property = Property::findOrFail($id);
 
             // Eliminar foto de fachada si existe
@@ -159,7 +177,6 @@ class PropertyController extends Controller
             if (!$propiedad)
                 return response()->json(['error' => 'No encontrada'], 404);
 
-            // 1. Contamos los estados de las órdenes de trabajo normales ('Por Hacer', 'En Proceso', 'Listo')
             $stats = DB::table('work_orders')
                 ->where('property_id', $id)
                 ->select('status', DB::raw('count(*) as total'))
@@ -167,30 +184,25 @@ class PropertyController extends Controller
                 ->get()
                 ->pluck('total', 'status');
 
-            // 2. Calculamos los SOS (Órdenes que no están listas y tienen prioridad Urgente)
             $sosCount = DB::table('work_orders')
                 ->where('property_id', $id)
                 ->where('status', '!=', 'Listo')
                 ->where('priority', 'Urgente')
                 ->count();
 
-            // 3. Historial (Últimos 5 trabajos terminados)
             $historial = DB::table('work_orders')
                 ->leftJoin('users', 'work_orders.tecnico_id', '=', 'users.id')
                 ->where('work_orders.property_id', $id)
                 ->where('work_orders.status', 'Listo')
-                // 👇 AQUÍ ESTÁ LA MAGIA: Unimos first_name y last_name con un espacio en medio
                 ->select('work_orders.*', DB::raw("CONCAT(users.first_name, ' ', users.last_name) as tecnico_nombre"))
                 ->orderBy('work_orders.updated_at', 'desc')
                 ->limit(5)
                 ->get();
 
-            // (Si no tienes tabla de cotizaciones, mandamos 0 temporalmente)
             $cotizacionesCount = 0;
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
-
-            // Si hay tareas, sacamos el porcentaje de las listas. Si no hay, es 0%.
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
+            
             return response()->json([
                 'propiedad' => $propiedad,
                 'stats' => [
@@ -208,24 +220,22 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    
     public function storeWorkOrder(Request $request)
     {
         try {
-            // 1. Manejo de la foto de evidencia (Opcional)
             $path = null;
             if ($request->hasFile('foto')) {
-                // Guarda la foto en storage/app/public/work_orders
                 $path = $request->file('foto')->store('work_orders', 'public');
             }
 
-            // 2. Insertar en la nueva tabla
             $id = DB::table('work_orders')->insertGetId([
                 'property_id' => $request->property_id,
                 'zone' => $request->zona,
                 'equipment' => $request->equipo,
                 'description' => $request->descripcion,
                 'evidence_path' => $path,
-                'status' => 'Por Hacer', // Siempre inicia así
+                'status' => 'Por Hacer', 
                 'priority' => 'Normal',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -237,6 +247,7 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    
     public function getWorkOrders($id)
     {
         try {
@@ -254,10 +265,10 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    
     public function updateWorkOrderStatus(Request $request, $id)
     {
         try {
-            // Validamos que el estatus que nos mandan sea uno válido
             $request->validate([
                 'status' => 'required|in:Por Hacer,En Proceso,Listo'
             ]);
