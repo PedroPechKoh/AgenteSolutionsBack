@@ -4,14 +4,19 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-
 use App\Models\PropertyComponent;
+// Importamos Cloudinary
+use Cloudinary\Cloudinary;
 
 class PropertyComponentController extends Controller
 {
     public function getByArea($areaId)
     {
         try {
+            // Protección de Sanctum
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $components = DB::table('property_components')
                 ->where('property_area_id', $areaId)
                 ->orderBy('created_at', 'desc')
@@ -32,21 +37,27 @@ class PropertyComponentController extends Controller
     public function store(Request $request)
     {
         try {
-            // Validación (agregamos la imagen)
+            // Protección de Sanctum
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $request->validate([
                 'property_area_id' => 'required',
                 'category' => 'required|string',
                 'sub_category' => 'required|string',
                 'quantity' => 'required|numeric',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240'
             ]);
 
-            // Lógica para la imagen
+            // Lógica para la IMAGEN PRINCIPAL (Cloudinary)
             $imagePath = null;
+            $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+
             if ($request->hasFile('image')) {
-                $file = $request->file('image');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $imagePath = $file->storeAs('componentes', $filename, 'public');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_componentes' 
+                ]);
+                $imagePath = $respuestaNube['secure_url'];
             }
 
             // Insertar en BD
@@ -61,19 +72,21 @@ class PropertyComponentController extends Controller
                 'unit' => $request->unit ?? 'PZA',
                 'status' => $request->status ?? 'Bueno',
                 'observations' => $request->observations ?? '',
-                'image_path' => $imagePath, // Guardamos la ruta
+                'image_path' => $imagePath, // Guardamos la URL de Cloudinary
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
+            // Lógica para GALERÍA (Cloudinary)
             if ($request->hasFile('gallery')) {
                 foreach ($request->file('gallery') as $file) {
-                    $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
-                    $path = $file->storeAs('componentes/galeria', $filename, 'public');
+                    $resGaleria = $cloudinary->uploadApi()->upload($file->getRealPath(), [
+                        'folder' => 'agente_componentes_galeria'
+                    ]);
 
                     DB::table('component_galleries')->insert([
                         'property_component_id' => $id,
-                        'image_path' => $path,
+                        'image_path' => $resGaleria['secure_url'], // URL de Cloudinary
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -89,13 +102,16 @@ class PropertyComponentController extends Controller
 
     /**
      * ==========================================================
-     * TUS FUNCIONES ORIGINALES (SIN MODIFICAR)
+     * TUS FUNCIONES ORIGINALES (BLINDADAS CON SANCTUM)
      * ==========================================================
      */
 
     public function getCatalogSummary()
     {
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $summary = DB::table('property_components')
                 ->select(
                     'brand',
@@ -131,10 +147,13 @@ class PropertyComponentController extends Controller
 
     public function getCatalogDetails(Request $request)
     {
-        $brand = $request->query('brand');
-        $model = $request->query('model');
-
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            $brand = $request->query('brand');
+            $model = $request->query('model');
+
             // 1. Buscamos todas las instalaciones de este modelo
             $installations = DB::table('property_components as pc')
                 ->join('property_areas as pa', 'pc.property_area_id', '=', 'pa.id')
@@ -145,12 +164,12 @@ class PropertyComponentController extends Controller
                 ->get();
 
             $ubicaciones = $installations->map(function ($inst) {
-                // 2. BUSQUEDA EXACTA: Solo servicios vinculados a ESTE componente específico
+                // 2. BUSQUEDA EXACTA
                 $reportes = DB::table('services as s')
                     ->join('service_component as sc', 's.id', '=', 'sc.service_id')
                     ->leftJoin('users as u', 's.assigned_to', '=', 'u.id')
                     ->select('s.scheduled_start', 's.service_type', 'u.first_name', 's.status')
-                    ->where('sc.property_component_id', $inst->component_id) // <--- El candado de precisión
+                    ->where('sc.property_component_id', $inst->component_id)
                     ->orderByDesc('s.scheduled_start')
                     ->get()
                     ->map(function ($service) {
@@ -182,6 +201,9 @@ class PropertyComponentController extends Controller
     public function getComponentsByProperty($propertyId)
     {
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $components = DB::table('property_components as pc')
                 ->join('property_areas as pa', 'pc.property_area_id', '=', 'pa.id')
                 ->select(
@@ -194,10 +216,8 @@ class PropertyComponentController extends Controller
                 ->where('pa.property_id', $propertyId)
                 ->get()
                 ->map(function ($item) {
-                    // Formateamos para que React lo lea fácil
                     return [
                         'id' => $item->id,
-                        // Ej: "Inverter X32 (MIRAGE) - Ubicación: Recámara Principal"
                         'display_name' => "{$item->model} ({$item->brand}) - Ubicación: {$item->area_name}"
                     ];
                 });
@@ -211,9 +231,13 @@ class PropertyComponentController extends Controller
             ], 500);
         }
     }
+    
     public function destroy($id)
     {
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             DB::table('property_components')->where('id', $id)->delete();
             return response()->json(['success' => true]);
         } catch (\Exception $e) {
@@ -224,17 +248,23 @@ class PropertyComponentController extends Controller
     public function update(Request $request, $id)
     {
         try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
             $component = DB::table('property_components')->where('id', $id)->first();
             if (!$component) {
                 return response()->json(['error' => 'No encontrado'], 404);
             }
 
-            // Lógica de la imagen (Si mandan una nueva, reemplaza la vieja)
             $imagePath = $component->image_path;
+            $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+
+            // ACTUALIZAR IMAGEN PRINCIPAL EN CLOUDINARY
             if ($request->hasFile('image')) {
-                $file = $request->file('image');
-                $filename = time() . '_' . $file->getClientOriginalName();
-                $imagePath = $file->storeAs('componentes', $filename, 'public');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_componentes' 
+                ]);
+                $imagePath = $respuestaNube['secure_url'];
             }
 
             DB::table('property_components')->where('id', $id)->update([
@@ -248,15 +278,16 @@ class PropertyComponentController extends Controller
                 'updated_at' => now(),
             ]);
 
-            // Guardar nuevas fotos en la galería al editar
+            // GUARDAR NUEVAS FOTOS EN LA GALERÍA AL EDITAR
             if ($request->hasFile('gallery')) {
                 foreach ($request->file('gallery') as $file) {
-                    $filename = time() . '_' . uniqid() . '_' . $file->getClientOriginalName();
-                    $path = $file->storeAs('componentes/galeria', $filename, 'public');
+                    $resGaleria = $cloudinary->uploadApi()->upload($file->getRealPath(), [
+                        'folder' => 'agente_componentes_galeria'
+                    ]);
 
                     DB::table('component_galleries')->insert([
                         'property_component_id' => $id,
-                        'image_path' => $path,
+                        'image_path' => $resGaleria['secure_url'],
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
