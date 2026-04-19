@@ -7,6 +7,8 @@ use App\Models\Property;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+// Importamos la API pura de Cloudinary (La Opción Nuclear)
+use Cloudinary\Cloudinary; 
 
 class PropertyController extends Controller
 {
@@ -23,10 +25,10 @@ class PropertyController extends Controller
             'calle' => 'required|string',
             'numero' => 'required|string',
             'property_name' => 'nullable|string|max:191',
-            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // Límite de 10MB
         ]);
 
-        // FORZAMOS LA LECTURA DESDE SANCTUM
+        // FORZAMOS LA LECTURA DESDE SANCTUM (El Gafete)
         $user = auth('sanctum')->user();
         if (!$user) {
             return response()->json(['error' => 'No autorizado. Token inválido o ausente.'], 401);
@@ -42,6 +44,16 @@ class PropertyController extends Controller
             $clientId = $cliente->id;
         } else {
             $clientId = $request->client_id;
+        }
+
+        // --- SUBIDA A CLOUDINARY (Fachadas) ---
+        $uploadedFileUrl = null;
+        if ($request->hasFile('facade_photo')) {
+            $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('facade_photo')->getRealPath(), [
+                'folder' => 'agente_propiedades' // Guardamos las casas en su propia carpeta en la nube
+            ]);
+            $uploadedFileUrl = $respuestaNube['secure_url'];
         }
 
         // Lógica de CURP Personalizado
@@ -62,11 +74,6 @@ class PropertyController extends Controller
         }
         $direccion_completa .= ", Col. {$request->colonia}, {$request->municipio}, {$request->estado}";
 
-        $path = null;
-        if ($request->hasFile('facade_photo')) {
-            $path = $request->file('facade_photo')->store('properties/facades', 'public');
-        }
-
         $property = new Property();
         $property->client_id = $clientId;
         $property->type = $request->type;
@@ -74,9 +81,10 @@ class PropertyController extends Controller
         $property->address = $direccion_completa;
         $property->coordinates = $request->coordinates;
         $property->custom_curp = $custom_curp;
-
         $property->property_name = $request->property_name;
-        $property->facade_photo_path = $path;
+        
+        // GUARDAMOS LA URL DIRECTA DE LA NUBE (O NULL SI NO SUBIERON NADA)
+        $property->facade_photo_path = $uploadedFileUrl;
 
         $property->save();
 
@@ -103,7 +111,7 @@ class PropertyController extends Controller
 
             $query = Property::with('client')->orderByDesc('created_at');
 
-            // Filtrado basado en el rol
+            // Filtrado basado en el rol (Si es Cliente 3, solo ve las suyas)
             if ($user->role_id == 3) {
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
                 if ($cliente) {
@@ -131,7 +139,8 @@ class PropertyController extends Controller
                     'tipo' => strtoupper($p->type),
                     'curp' => $p->custom_curp,
                     'coordenadas' => $p->coordinates,
-                    'foto_url' => $p->facade_photo_path ? asset('storage/' . $p->facade_photo_path) : null,
+                    // YA NO USAMOS asset('storage/...'), LA URL YA VIENE COMPLETA DE CLOUDINARY
+                    'foto_url' => $p->facade_photo_path,
                     'created_at' => $p->created_at,
                     'has_pending_service' => $tienePendiente
                 ];
@@ -157,8 +166,9 @@ class PropertyController extends Controller
 
             $property = Property::findOrFail($id);
 
-            // Eliminar foto de fachada si existe
-            if ($property->facade_photo_path) {
+            // Nota: Esto elimina fotos solo si quedaron algunas viejas guardadas en local.
+            // Las de Cloudinary se quedan en la nube como respaldo.
+            if ($property->facade_photo_path && !str_contains($property->facade_photo_path, 'cloudinary.com')) {
                 Storage::disk('public')->delete($property->facade_photo_path);
             }
 
@@ -170,6 +180,9 @@ class PropertyController extends Controller
         }
     }
 
+    // ---------------------------------------------------
+    // 4. DATOS DEL DASHBOARD DE LA PROPIEDAD
+    // ---------------------------------------------------
     public function getDashboardData($id)
     {
         try {
@@ -221,6 +234,9 @@ class PropertyController extends Controller
         }
     }
     
+    // ---------------------------------------------------
+    // 5. GUARDAR ÓRDENES DE TRABAJO
+    // ---------------------------------------------------
     public function storeWorkOrder(Request $request)
     {
         try {
@@ -248,6 +264,9 @@ class PropertyController extends Controller
         }
     }
     
+    // ---------------------------------------------------
+    // 6. OBTENER ÓRDENES DE TRABAJO
+    // ---------------------------------------------------
     public function getWorkOrders($id)
     {
         try {
@@ -266,6 +285,9 @@ class PropertyController extends Controller
         }
     }
     
+    // ---------------------------------------------------
+    // 7. ACTUALIZAR ESTADO DE ÓRDENES
+    // ---------------------------------------------------
     public function updateWorkOrderStatus(Request $request, $id)
     {
         try {
