@@ -13,7 +13,7 @@ class ImageController extends Controller
     {
         // 1. Validamos
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:10240',
         ]);
 
         try {
