@@ -186,10 +186,6 @@ Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWork
 Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
 Route::get('/propiedades', [PropertyController::class, 'index']);
 
-//Subir imagenes
-use App\Http\Controllers\ImageController;
-
-
 Route::get('/limpiar-cache', function() {
     Artisan::call('config:clear');
     Artisan::call('cache:clear');
