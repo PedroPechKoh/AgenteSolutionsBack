@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Quote;
+use App\Models\User;
+use App\Notifications\QuoteStatusUpdated;
 
 class QuoteController extends Controller
 {
@@ -67,6 +69,7 @@ class QuoteController extends Controller
                                    'estado' => $quote->status,
                                    'tipo' => $quote->type,
                                    'concepto' => $quote->concept,
+                                   'observaciones' => $quote->observations,
                                    // Si hay archivo, armamos la URL completa
                                    'archivo_url' => $quote->file_path ? asset('storage/' . $quote->file_path) : null
                                ];
@@ -90,10 +93,17 @@ class QuoteController extends Controller
             $quote->status = $request->status;
             
             if ($request->status === 'Rechazado' && $request->filled('rejection_reason')) {
-                $quote->observations = $quote->observations . "\n[MOTIVO RECHAZO]: " . $request->rejection_reason;
+                $quote->observations = $quote->observations . "\n\n[MOTIVO RECHAZO]: " . $request->rejection_reason;
             }
 
             $quote->save();
+
+            // Notify admins
+            $clientName = $quote->service->property->client->name ?? 'Cliente desconocido';
+            $admins = User::where('role_id', 0)->get();
+            foreach ($admins as $admin) {
+                $admin->notify(new QuoteStatusUpdated($quote, $clientName));
+            }
 
             return response()->json(['message' => 'Estado actualizado', 'quote' => $quote], 200);
         } catch (\Exception $e) {
