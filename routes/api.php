@@ -150,6 +150,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/servicios', [ServiceController::class, 'index']);
     Route::post('/servicios', [ServiceController::class, 'store']);
     Route::get('/servicios/{id}', [ServiceController::class, 'show']);
+    Route::put('/servicios/{id}', [ServiceController::class, 'update']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
     Route::post('/services/assign', [ServiceController::class, 'store']);
     
