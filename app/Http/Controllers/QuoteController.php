@@ -77,4 +77,27 @@ class QuoteController extends Controller
             return response()->json(['error' => 'Error al cargar cotizaciones: ' . $e->getMessage()], 500);
         }
     }
+
+    public function updateStatus(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'status' => 'required|in:Aprobado,Rechazado',
+                'rejection_reason' => 'nullable|string'
+            ]);
+
+            $quote = Quote::findOrFail($id);
+            $quote->status = $request->status;
+            
+            if ($request->status === 'Rechazado' && $request->filled('rejection_reason')) {
+                $quote->observations = $quote->observations . "\n[MOTIVO RECHAZO]: " . $request->rejection_reason;
+            }
+
+            $quote->save();
+
+            return response()->json(['message' => 'Estado actualizado', 'quote' => $quote], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al actualizar: ' . $e->getMessage()], 500);
+        }
+    }
 }
