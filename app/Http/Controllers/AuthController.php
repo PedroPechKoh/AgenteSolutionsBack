@@ -10,18 +10,25 @@ class AuthController extends Controller
 {
     public function registro(Request $request)
     {
+        // 1. Actualizamos la validación para requerir first_name y last_name
         $request->validate([
-            'name' => 'required|string|max:191',
+            'first_name' => 'required|string|max:191',
+            'last_name' => 'required|string|max:191',
             'email' => 'required|string|email|max:191|unique:users',
             'password' => 'required|string|min:6',
-            'role_id' => 'required|integer' 
+            'role_id' => 'required|integer',
+            // Puedes agregar phone_number si también lo mandas desde el frontend
+            'phone_number' => 'nullable|string|max:20' 
         ]);
 
+        // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
-            'name' => $request->name,
+            'first_name' => $request->first_name,
+            'last_name' => $request->last_name,
             'email' => $request->email,
             'password' => Hash::make($request->password), 
             'role_id' => $request->role_id,
+            'phone_number' => $request->phone_number ?? null,
             'is_active' => 1 
         ]);
 
@@ -56,7 +63,6 @@ class AuthController extends Controller
             ], 403);
         }
 
-       
         $token = $user->createToken('AgenteToken')->plainTextToken;
 
         return response()->json([

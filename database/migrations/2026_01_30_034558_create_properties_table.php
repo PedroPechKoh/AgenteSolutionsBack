@@ -11,16 +11,18 @@ return new class extends Migration
      */
     public function up(): void
 {
-    Schema::create('properties', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
-        
-        $table->string('type'); 
-        $table->string('custom_curp', 191)->unique();
-        $table->text('address');
-        $table->string('coordinates')->nullable();
-        $table->timestamps();
-    });
+    if (!Schema::hasTable('properties')) {
+        Schema::create('properties', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('client_id')->constrained('clients')->onDelete('cascade');
+            
+            $table->string('type'); 
+            $table->string('custom_curp', 191)->unique();
+            $table->text('address');
+            $table->string('coordinates')->nullable();
+            $table->timestamps();
+        });
+    }
 }
 
     /**
