@@ -13,7 +13,10 @@ class UserController extends Controller
     public function updateProfile(Request $request)
     {
         try {
+            // ✅ CORRECCIÓN: Detectamos si llega el ID limpio ('user_id') o el viejo ('id' con prefijo)
             $idWithPrefix = $request->input('id');
+            $cleanUserId = $request->input('user_id');
+
             $profilePicturePath = null;
 
             if ($request->hasFile('profile_picture')) {
@@ -23,7 +26,7 @@ class UserController extends Controller
             // ---------------------------------------------------------
             // 1. MANEJO PARA CLIENTES (Tabla 'clients')
             // ---------------------------------------------------------
-            if (str_starts_with($idWithPrefix, 'c_')) {
+            if ($idWithPrefix && str_starts_with($idWithPrefix, 'c_')) {
                 $realId = str_replace('c_', '', $idWithPrefix);
                 $cliente = DB::table('clients')->where('id', $realId)->first();
 
@@ -65,21 +68,29 @@ class UserController extends Controller
             // ---------------------------------------------------------
             // 2. MANEJO PARA USUARIOS (Tabla 'users')
             // ---------------------------------------------------------
-            $realId = str_replace('u_', '', $idWithPrefix);
+
+            // ✅ ASIGNACIÓN DINÁMICA DEL ID
+            $realId = $cleanUserId ? $cleanUserId : str_replace('u_', '', $idWithPrefix);
+
             $user = User::find($realId);
 
             if (!$user) {
                 return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
             }
 
-            if ($user->role_id === 0) {
-                return response()->json(['success' => false, 'message' => 'Acceso Denegado: No puedes editar los datos del ROOT.'], 403);
+            if ($user->role_id === 0 && auth('sanctum')->id() !== $user->id) {
+                // Un root puede editarse a sí mismo, pero nadie más puede editar a un root.
+                return response()->json(['success' => false, 'message' => 'Acceso Denegado.'], 403);
             }
 
             $user->first_name = $request->input('first_name');
             $user->last_name = $request->input('last_name') ?: '';
             $user->email = $request->input('email');
             $user->phone_number = $request->input('phone_number');
+
+            if ($request->filled('birth_date')) {
+                $user->birth_date = $request->input('birth_date');
+            }
 
             if ($request->filled('password')) {
                 $user->password = bcrypt($request->input('password'));
@@ -113,7 +124,7 @@ class UserController extends Controller
     // =========================================================================
     // OTRAS FUNCIONES (Rol, Listar, Eliminar, Bloquear)
     // =========================================================================
-   public function updateRole(Request $request, $id)
+    public function updateRole(Request $request, $id)
     {
         // 1. Limpiamos el ID (quitamos el prefijo u_ si existe)
         $realId = str_replace('u_', '', $id);
@@ -126,7 +137,7 @@ class UserController extends Controller
         // 3. Si intentan cambiar el rol de un Cliente (tabla clients), manejamos el error
         // ya que el rol de cliente usualmente es fijo o se maneja distinto.
         if (str_starts_with($id, 'c_')) {
-             return response()->json(['success' => false, 'message' => 'No se puede cambiar el rol directamente a un registro de la tabla Clientes.'], 400);
+            return response()->json(['success' => false, 'message' => 'No se puede cambiar el rol directamente a un registro de la tabla Clientes.'], 400);
         }
 
         $user = User::find($realId);
@@ -150,7 +161,7 @@ class UserController extends Controller
         ], 200);
     }
 
-   public function getUsuarios()
+    public function getUsuarios()
     {
         try {
             $usuariosQuery = \App\Models\User::select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number')->get();
@@ -265,9 +276,9 @@ class UserController extends Controller
         }
     }
 
-   public function getTecnicos()
-{
-    $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name']);
-    return response()->json($tecnicos);
-}
+    public function getTecnicos()
+    {
+        $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name']);
+        return response()->json($tecnicos);
+    }
 }
