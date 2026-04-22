@@ -202,6 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/cotizaciones', [QuoteController::class, 'index']);
     Route::post('/cotizaciones', [QuoteController::class, 'store']);
     Route::put('/cotizaciones/{id}/status', [QuoteController::class, 'updateStatus']);
+    Route::post('/servicios/{id}/confirmar-materiales', [QuoteController::class, 'confirmMaterials']);
 
     // --- NOTIFICACIONES ---
     Route::get('/notifications/unread', [NotificationController::class, 'getUnread']);
