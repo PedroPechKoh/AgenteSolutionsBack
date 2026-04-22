@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Appliance;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log; 
+use Illuminate\Support\Facades\Log;
 
 class ApplianceController extends Controller
 {
@@ -43,3 +43,9 @@ class ApplianceController extends Controller
     }
 
 }
+
+
+
+
+
+

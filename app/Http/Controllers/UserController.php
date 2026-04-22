@@ -3,17 +3,17 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User; 
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage; 
+use Illuminate\Support\Facades\Storage;
 
 class UserController extends Controller
 {
-    
+
     public function updateProfile(Request $request)
     {
         try {
-            $idWithPrefix = $request->input('id'); 
+            $idWithPrefix = $request->input('id');
             $profilePicturePath = null;
 
             if ($request->hasFile('profile_picture')) {
@@ -37,7 +37,7 @@ class UserController extends Controller
                     'name' => $fullName,
                     'email' => $request->input('email'),
                     'phone' => $request->input('phone_number'),
-                    'is_active' => $request->input('is_active'), 
+                    'is_active' => $request->input('is_active'),
                     'updated_at' => now(),
                 ];
 
@@ -51,12 +51,12 @@ class UserController extends Controller
                 DB::table('clients')->where('id', $realId)->update($updateData);
 
                 $clienteActualizado = DB::table('clients')->where('id', $realId)->first();
-                $fotoUrl = $clienteActualizado->profile_picture 
-                    ? (str_starts_with($clienteActualizado->profile_picture, 'http') ? $clienteActualizado->profile_picture : asset('storage/' . $clienteActualizado->profile_picture)) 
+                $fotoUrl = $clienteActualizado->profile_picture
+                    ? (str_starts_with($clienteActualizado->profile_picture, 'http') ? $clienteActualizado->profile_picture : asset('storage/' . $clienteActualizado->profile_picture))
                     : null;
 
                 return response()->json([
-                    'success' => true, 
+                    'success' => true,
                     'message' => 'Expediente del cliente actualizado.',
                     'new_picture_url' => $fotoUrl
                 ], 200);
@@ -77,7 +77,7 @@ class UserController extends Controller
             }
 
             $user->first_name = $request->input('first_name');
-            $user->last_name = $request->input('last_name') ?: ''; 
+            $user->last_name = $request->input('last_name') ?: '';
             $user->email = $request->input('email');
             $user->phone_number = $request->input('phone_number');
 
@@ -94,12 +94,12 @@ class UserController extends Controller
 
             $user->save();
 
-            $fotoUrl = $user->profile_picture 
-                ? (str_starts_with($user->profile_picture, 'http') ? $user->profile_picture : asset('storage/' . $user->profile_picture)) 
+            $fotoUrl = $user->profile_picture
+                ? (str_starts_with($user->profile_picture, 'http') ? $user->profile_picture : asset('storage/' . $user->profile_picture))
                 : null;
 
             return response()->json([
-                'success' => true, 
+                'success' => true,
                 'message' => 'Expediente del usuario actualizado.',
                 'new_picture_url' => $fotoUrl
             ], 200);
@@ -113,19 +113,41 @@ class UserController extends Controller
     // =========================================================================
     // OTRAS FUNCIONES (Rol, Listar, Eliminar, Bloquear)
     // =========================================================================
-    public function updateRole(Request $request, $id)
+   public function updateRole(Request $request, $id)
     {
-        $request->validate(['role_id' => 'required|integer|in:0,1']);
-        $user = User::find($id);
+        // 1. Limpiamos el ID (quitamos el prefijo u_ si existe)
+        $realId = str_replace('u_', '', $id);
+
+        // 2. Ajustamos la validación: permitimos 0 (Root), 1 (Admin), 2 (Tecnico), 3 (Cliente)
+        $request->validate([
+            'role_id' => 'required|integer|in:0,1,2,3'
+        ]);
+
+        // 3. Si intentan cambiar el rol de un Cliente (tabla clients), manejamos el error
+        // ya que el rol de cliente usualmente es fijo o se maneja distinto.
+        if (str_starts_with($id, 'c_')) {
+             return response()->json(['success' => false, 'message' => 'No se puede cambiar el rol directamente a un registro de la tabla Clientes.'], 400);
+        }
+
+        $user = User::find($realId);
 
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
         }
 
+        // 4. Seguridad: No permitir que nadie le quite el puesto al ROOT si ya lo es
+        if ($user->role_id === 0 && $request->role_id !== 0) {
+            return response()->json(['success' => false, 'message' => 'No puedes quitarle el rango de ROOT a este usuario.'], 403);
+        }
+
         $user->role_id = $request->role_id;
         $user->save();
 
-        return response()->json(['success' => true, 'message' => 'Rol actualizado correctamente.', 'user' => $user], 200);
+        return response()->json([
+            'success' => true,
+            'message' => 'Rol actualizado correctamente.',
+            'user' => $user
+        ], 200);
     }
 
    public function getUsuarios()
@@ -152,10 +174,10 @@ class UserController extends Controller
                 ->select('id', 'user_id', 'name', 'email', 'phone', 'profile_picture', 'is_active')
                 ->get();
 
-            $clientes = $clientesQuery->map(function ($c) { 
+            $clientes = $clientesQuery->map(function ($c) {
                 $fotoUrl = $c->profile_picture ? (str_starts_with($c->profile_picture, 'http') ? $c->profile_picture : asset('storage/' . $c->profile_picture)) : null;
                 return [
-                    'id' => 'c_' . $c->id, 
+                    'id' => 'c_' . $c->id,
                     'first_name' => $c->name,
                     'last_name' => '',
                     'email' => $c->email,
@@ -163,13 +185,13 @@ class UserController extends Controller
                     'is_active' => $c->is_active,
                     'profile_picture_url' => $fotoUrl,
                     'phone_number' => $c->phone,
-                    'address' => 'No registrada', 
+                    'address' => 'No registrada',
                 ];
             });
 
             $todosLosRegistros = $usuarios->concat($clientes);
             return response()->json($todosLosRegistros, 200);
-            
+
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -179,7 +201,7 @@ class UserController extends Controller
     {
         try {
             if (str_starts_with($id, 'c_')) {
-                $realId = str_replace('c_', '', $id); 
+                $realId = str_replace('c_', '', $id);
                 DB::table('clients')->where('id', $realId)->delete();
                 return response()->json(['message' => 'Cliente eliminado correctamente'], 200);
             }
@@ -191,7 +213,7 @@ class UserController extends Controller
                 return response()->json(['error' => 'Usuario no encontrado'], 404);
             }
 
-            if ($usuario->role_id === 0) { 
+            if ($usuario->role_id === 0) {
                 return response()->json(['error' => 'Acceso Denegado: No se puede eliminar al ROOT'], 403);
             }
 
@@ -243,7 +265,7 @@ class UserController extends Controller
         }
     }
 
-   public function getTecnicos() 
+   public function getTecnicos()
 {
     $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name']);
     return response()->json($tecnicos);

@@ -18,7 +18,7 @@ use App\Http\Controllers\PropertyComponentController;
 // ========================================================
 
 // 1. Logins y Registros
-Route::post('/login', [AuthController::class, 'login']); 
+Route::post('/login', [AuthController::class, 'login']);
 Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
 // Mantuve tu registro de clientes aquí para que siga funcionando
@@ -62,12 +62,13 @@ Route::get('/ui/settings/login-settings', [AppSettingController::class, 'getLogi
 // ========================================================
 
 Route::middleware('auth:sanctum')->group(function () {
-    
+
     // --- USUARIOS Y PERFILES ---
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
     Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
-    Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
+        Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
+
     Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
     Route::get('/usuarios/tecnicos', [UserController::class, 'getTecnicos']);
 
@@ -104,7 +105,7 @@ Route::middleware('auth:sanctum')->group(function () {
             ->where('properties.coordinates', '!=', '')
             ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture')
             ->get();
-    
+
         $marcadores = $propiedades->map(function ($prop) {
             $partes = explode(',', $prop->coordinates);
             return [
@@ -117,7 +118,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 'picture' => $prop->profile_picture
             ];
         })->filter(function ($m) { return $m['lat'] !== null && $m['lng'] !== null; })->values();
-    
+
         return response()->json($marcadores);
     });
 
@@ -127,7 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/servicios/{id}', [App\Http\Controllers\ServiceController::class, 'show']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
     Route::post('/services/assign', [App\Http\Controllers\ServiceController::class, 'store']);
-    
+
     Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getServices']);
     Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [App\Http\Controllers\ServiceController::class, 'getServicesByProperty']);
 
