@@ -17,14 +17,13 @@ use App\Http\Controllers\PropertyAreaController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\NotificationController;
 
+// ========================================================
+// 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
+// ========================================================
 
 Route::post('/login', [AuthController::class, 'login']);
 
-
-Route::post('/login', [AuthController::class, 'login']);
-
-
-
+// Registro Privado (Exclusivo para el Admin)
 Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
 // Registro Público (Exclusivo para Clientes)
@@ -75,19 +74,19 @@ Route::get('/limpiar-cache', function() {
 });
 
 
+// ========================================================
+// 🔴 ZONA SEGURA (Solo entras si traes el Token de Sanctum)
+// ========================================================
 
 Route::middleware('auth:sanctum')->group(function () {
 
-
-
-
     Route::post('/logout', [AuthController::class, 'logout']);
 
+    // --- USUARIOS Y PERFILES ---
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
     Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
-        Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
-
+    Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
     Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
     Route::get('/usuarios/tecnicos', [UserController::class, 'getTecnicos']);
 
@@ -113,7 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     });
 
-    // --- PROPIEDADES ---
+    // --- PROPIEDADES Y MAPAS ---
     Route::get('/propiedades', [PropertyController::class, 'index']);
     Route::post('/registro-propiedad', [PropertyController::class, 'store']);
     Route::delete('/propiedades/{id}', [PropertyController::class, 'destroy']);
@@ -127,7 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
             ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture')
             ->get();
 
-        $marcadores = $propiedades->map(function ($prop) {
+        $marcadoresBrutos = $propiedades->map(function ($prop) {
             $partes = explode(',', $prop->coordinates);
             return [
                 'id' => $prop->prop_id,
@@ -138,34 +137,29 @@ Route::middleware('auth:sanctum')->group(function () {
                 'phone' => $prop->phone,
                 'picture' => $prop->profile_picture
             ];
+        });
 
-        })->filter(function ($m) { return $m['lat'] !== null && $m['lng'] !== null; })->values();
+        // ✅ REPARADO: Filtramos sin usar la notación de flecha que confundía a Laravel
+        $marcadoresLimpios = [];
+        foreach ($marcadoresBrutos as $m) {
+            if ($m['lat'] !== null && $m['lng'] !== null) {
+                $marcadoresLimpios[] = $m;
+            }
+        }
 
-        })->filter(function ($m) {
-            return $m['lat'] !== null && $m['lng'] !== null;
-        })->values();
-
-
-        return response()->json($marcadores);
+        return response()->json($marcadoresLimpios);
     });
 
-
+    // --- SERVICIOS Y LEVANTAMIENTOS ---
     Route::get('/servicios', [ServiceController::class, 'index']);
     Route::post('/servicios', [ServiceController::class, 'store']);
     Route::get('/servicios/{id}', [ServiceController::class, 'show']);
     Route::put('/servicios/{id}', [ServiceController::class, 'update']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
-
-    Route::post('/services/assign', [App\Http\Controllers\ServiceController::class, 'store']);
-
-    Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getServices']);
-    Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [App\Http\Controllers\ServiceController::class, 'getServicesByProperty']);
-
     Route::post('/services/assign', [ServiceController::class, 'store']);
 
     Route::put('/servicios/{id}/confirmar-cliente', [ServiceController::class, 'confirmarCitaCliente']);
     Route::put('/servicios/{id}/solicitar-reprogramacion', [ServiceController::class, 'solicitarReprogramacion']);
-
 
     Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getTecnicoServicios']);
     Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [ServiceController::class, 'getServicesByProperty']);
@@ -208,4 +202,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread', [NotificationController::class, 'getUnread']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::get('/notifications/all', [NotificationController::class, 'getAll']);
-
+});
