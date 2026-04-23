@@ -159,25 +159,23 @@ public function finalizarCotizacion(Request $request, $id)
 {
     $quote = Quote::findOrFail($id);
 
-    // 1. Subir el PDF a Cloudinary (en la carpeta 'cotizaciones')
-    // Usamos 'upload' con 'resource_type' => 'auto' para que acepte PDFs
-    $resultado = Cloudinary::upload($request->file('pdf')->getRealPath(), [
-        'folder' => 'cotizaciones',
-        'resource_type' => 'auto'
-    ]);
+    // Si viene un archivo PDF, lo subimos a Cloudinary
+    if ($request->hasFile('pdf')) {
+        $resultado = Cloudinary::upload($request->file('pdf')->getRealPath(), [
+            'folder' => 'cotizaciones',
+            'resource_type' => 'auto'
+        ]);
+        
+        $quote->file_path = $resultado->getSecurePath(); // Guardamos la URL
+    }
 
-    // 2. Obtener la URL segura de Cloudinary
-    $pdfUrl = $resultado->getSecurePath();
-
-    // 3. Guardar en la base de datos
     $quote->observations = $request->input('observaciones');
-    $quote->file_path = $pdfUrl; // Aquí guardamos el link eterno
-    $quote->status = 'Enviada'; // O el estado que manejes
+    
     $quote->save();
 
     return response()->json([
-        'message' => 'Todo guardado correctamente',
-        'url' => $pdfUrl
+        'message' => 'Cotización generada y guardada correctamente',
+        'url' => $quote->file_path
     ]);
 }
 }
