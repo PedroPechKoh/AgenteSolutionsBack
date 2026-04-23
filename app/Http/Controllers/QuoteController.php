@@ -1,13 +1,12 @@
 <?php
 
 namespace App\Http\Controllers;
-
+use Cloudinary\Cloudinary;
 use Illuminate\Http\Request;
 use App\Models\Quote;
 use App\Models\User;
 use App\Models\Service; // Asegúrate de importar el modelo Service
 use App\Notifications\QuoteStatusUpdated;
-use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class QuoteController extends Controller
 {
@@ -156,26 +155,45 @@ class QuoteController extends Controller
 }
 
 public function finalizarCotizacion(Request $request, $id)
-{
-    $quote = Quote::findOrFail($id);
+    {
+        $quote = \App\Models\Quote::findOrFail($id);
 
-    // Si viene un archivo PDF, lo subimos a Cloudinary
-    if ($request->hasFile('pdf')) {
-        $resultado = Cloudinary::upload($request->file('pdf')->getRealPath(), [
-            'folder' => 'cotizaciones',
-            'resource_type' => 'auto'
-        ]);
-        
-        $quote->file_path = $resultado->getSecurePath(); // Guardamos la URL
+        try {
+            // Si viene un archivo PDF, usamos la "Opción Nuclear"
+            if ($request->hasFile('pdf')) {
+                // Instanciamos Cloudinary directamente con tu clave (igual que en ImageController)
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                
+                // Subimos el archivo a la carpeta 'cotizaciones_pdf'
+                // NOTA CRÍTICA: Se debe especificar resource_type => 'raw' o 'auto' para PDFs, de lo contrario falla
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('pdf')->getRealPath(), [
+                    'folder' => 'cotizaciones_pdf',
+                    'resource_type' => 'auto' 
+                ]);
+
+                // Guardamos la URL segura
+                $quote->file_path = $respuestaNube['secure_url'];
+            }
+
+            // Guardamos las observaciones
+            $quote->observations = $request->input('observaciones');
+            
+            // Opcional: Cambiar estado (ej. de 'Pendiente' a 'Aprobado' o 'En Proceso')
+            // $quote->status = 'En Proceso';
+
+            $quote->save();
+
+            return response()->json([
+                'message' => 'Cotización generada y guardada correctamente',
+                'url' => $quote->file_path
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Error interno al subir PDF: ' . $e->getMessage(),
+                'archivo' => $e->getFile(),
+                'linea' => $e->getLine()
+            ], 500);
+        }
     }
-
-    $quote->observations = $request->input('observaciones');
-    
-    $quote->save();
-
-    return response()->json([
-        'message' => 'Cotización generada y guardada correctamente',
-        'url' => $quote->file_path
-    ]);
-}
 }
