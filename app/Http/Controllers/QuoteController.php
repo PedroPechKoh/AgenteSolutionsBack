@@ -7,6 +7,7 @@ use App\Models\Quote;
 use App\Models\User;
 use App\Models\Service; // Asegúrate de importar el modelo Service
 use App\Notifications\QuoteStatusUpdated;
+use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
 
 class QuoteController extends Controller
 {
@@ -152,5 +153,31 @@ class QuoteController extends Controller
     $quote->save();
 
     return response()->json(['message' => 'Observaciones guardadas']);
+}
+
+public function finalizarCotizacion(Request $request, $id)
+{
+    $quote = Quote::findOrFail($id);
+
+    // 1. Subir el PDF a Cloudinary (en la carpeta 'cotizaciones')
+    // Usamos 'upload' con 'resource_type' => 'auto' para que acepte PDFs
+    $resultado = Cloudinary::upload($request->file('pdf')->getRealPath(), [
+        'folder' => 'cotizaciones',
+        'resource_type' => 'auto'
+    ]);
+
+    // 2. Obtener la URL segura de Cloudinary
+    $pdfUrl = $resultado->getSecurePath();
+
+    // 3. Guardar en la base de datos
+    $quote->observations = $request->input('observaciones');
+    $quote->file_path = $pdfUrl; // Aquí guardamos el link eterno
+    $quote->status = 'Enviada'; // O el estado que manejes
+    $quote->save();
+
+    return response()->json([
+        'message' => 'Todo guardado correctamente',
+        'url' => $pdfUrl
+    ]);
 }
 }
