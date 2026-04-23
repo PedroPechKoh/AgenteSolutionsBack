@@ -143,4 +143,14 @@ class QuoteController extends Controller
             return response()->json(['error' => 'Error al confirmar materiales: ' . $e->getMessage()], 500);
         }
     }
+
+    public function updateObservations(Request $request, $id)
+{
+    $quote = Quote::findOrFail($id);
+    // Tu tabla usa 'observations'
+    $quote->observations = $request->input('observaciones'); 
+    $quote->save();
+
+    return response()->json(['message' => 'Observaciones guardadas']);
+}
 }

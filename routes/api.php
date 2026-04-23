@@ -202,4 +202,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications/unread', [NotificationController::class, 'getUnread']);
     Route::put('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
     Route::get('/notifications/all', [NotificationController::class, 'getAll']);
+
+    ///Cotizaciones
+    Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
 });
