@@ -39,11 +39,22 @@ class PropertyController extends Controller
         if ($user->role_id == 3) {
             $cliente = DB::table('clients')->where('user_id', $user->id)->first();
 
-            // Candado estricto: Si no hay perfil, bloqueamos la acción
+            // 🔥 SISTEMA DE AUTO-REPARACIÓN 🔥
+            // Si el cliente no existe (es fantasma), en lugar de bloquearlo y arrojar error,
+            // le creamos su expediente oficial en la tabla clients en este preciso momento.
             if (!$cliente) {
-                return response()->json(['error' => 'No se encontró el perfil de cliente asociado a este usuario.'], 404);
+                $clientId = DB::table('clients')->insertGetId([
+                    'user_id' => $user->id,
+                    'name' => trim($user->first_name . ' ' . $user->last_name) ?: 'Cliente Web',
+                    'email' => $user->email,
+                    'phone' => $user->phone_number ?? 'Sin teléfono',
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            } else {
+                // Si ya existe, simplemente tomamos su ID
+                $clientId = $cliente->id;
             }
-            $clientId = $cliente->id; // Usamos su ID real y único
 
         } else {
             $clientId = $request->client_id;
