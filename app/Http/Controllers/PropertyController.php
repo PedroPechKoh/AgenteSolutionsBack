@@ -39,7 +39,7 @@ class PropertyController extends Controller
         if ($user->role_id == 3) {
             $cliente = DB::table('clients')->where('user_id', $user->id)->first();
 
-            // Volvemos a poner el candado estricto
+            // Candado estricto: Si no hay perfil, bloqueamos la acción
             if (!$cliente) {
                 return response()->json(['error' => 'No se encontró el perfil de cliente asociado a este usuario.'], 404);
             }
@@ -120,9 +120,8 @@ class PropertyController extends Controller
                 if ($cliente) {
                     $query->where('client_id', $cliente->id);
                 } else {
-                    // 🔥 MODO PRUEBAS ACTIVADO 🔥
-                    // Para que el usuario de prueba de iOS pueda ver la casa que acaba de crear
-                    $query->where('client_id', 1);
+                    // Si el usuario no tiene perfil, le devolvemos una lista vacía
+                    return response()->json([], 200);
                 }
             }
 
