@@ -39,17 +39,14 @@ class PropertyController extends Controller
         if ($user->role_id == 3) {
             $cliente = DB::table('clients')->where('user_id', $user->id)->first();
 
-            // 🔥 MODO PRUEBAS ACTIVADO 🔥
-            // Si el usuario es fantasma y no tiene perfil en 'clients', 
-            // no lanzamos error, simplemente le prestamos el client_id = 1
+            // Volvemos a poner el candado estricto
             if (!$cliente) {
-                $clientId = 1;
-            } else {
-                $clientId = $cliente->id;
+                return response()->json(['error' => 'No se encontró el perfil de cliente asociado a este usuario.'], 404);
             }
+            $clientId = $cliente->id; // Usamos su ID real y único
+
         } else {
-            // Aseguramos que si no viene client_id desde React, también use el 1 por defecto
-            $clientId = $request->client_id ?? 1;
+            $clientId = $request->client_id;
         }
 
         // --- SUBIDA A CLOUDINARY (Fachadas) ---
