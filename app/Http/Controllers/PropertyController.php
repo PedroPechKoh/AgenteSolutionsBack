@@ -37,12 +37,16 @@ class PropertyController extends Controller
         $clientId = null;
 
         if ($user->role_id == 3) {
-            $cliente = DB::table('clients')->where('user_id', $user->id)->first();
 
-            // 🔥 SISTEMA DE AUTO-REPARACIÓN 🔥
-            // Si el cliente no existe (es fantasma), en lugar de bloquearlo y arrojar error,
-            // le creamos su expediente oficial en la tabla clients en este preciso momento.
+            // 🔥 AUTO-REPARADOR NIVEL DIOS 🔥
+            // Buscamos por ID o por Correo para que no haya duplicados
+            $cliente = DB::table('clients')
+                ->where('user_id', $user->id)
+                ->orWhere('email', $user->email)
+                ->first();
+
             if (!$cliente) {
+                // 1. Si de verdad no existe, lo creamos
                 $clientId = DB::table('clients')->insertGetId([
                     'user_id' => $user->id,
                     'name' => trim($user->first_name . ' ' . $user->last_name) ?: 'Cliente Web',
@@ -52,7 +56,12 @@ class PropertyController extends Controller
                     'updated_at' => now()
                 ]);
             } else {
-                // Si ya existe, simplemente tomamos su ID
+                // 2. Si ya existía el correo pero estaba desvinculado de este nuevo ID, lo reconectamos silenciosamente
+                if ($cliente->user_id !== $user->id) {
+                    DB::table('clients')->where('id', $cliente->id)->update([
+                        'user_id' => $user->id
+                    ]);
+                }
                 $clientId = $cliente->id;
             }
 
