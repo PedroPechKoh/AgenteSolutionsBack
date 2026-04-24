@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB; // <-- IMPORTANTE: Añadimos esto para poder escribir en la tabla clients
 
 class AuthController extends Controller
 {
@@ -18,19 +19,33 @@ class AuthController extends Controller
             'password' => 'required|string|min:6',
             'role_id' => 'required|integer',
             // Puedes agregar phone_number si también lo mandas desde el frontend
-            'phone_number' => 'nullable|string|max:20' 
+            'phone_number' => 'nullable|string|max:20'
         ]);
 
-        // 2. Guardamos usando los campos correctos de la tabla
+        // 2. Guardamos usando los campos correctos de la tabla users
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
             'email' => $request->email,
-            'password' => Hash::make($request->password), 
+            'password' => Hash::make($request->password),
             'role_id' => $request->role_id,
             'phone_number' => $request->phone_number ?? null,
-            'is_active' => 1 
+            'is_active' => 1
         ]);
+
+        // 👇 LA MAGIA PARA MATAR A LOS USUARIOS FANTASMA 👇
+        // 3. Si el rol es 3 (Cliente), le creamos su perfil automáticamente en la tabla clients
+        if ($user->role_id == 3) {
+            DB::table('clients')->insert([
+                'user_id' => $user->id,
+                'name' => $user->first_name . ' ' . $user->last_name, // Concatenamos el nombre para el perfil
+                'email' => $user->email,
+                'phone' => $user->phone_number ?? 'Sin teléfono',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+        // 👆 FIN DE LA MAGIA 👆
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
 
@@ -38,7 +53,7 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Usuario creado exitosamente',
             'user' => $user,
-            'token' => $token 
+            'token' => $token
         ], 201);
     }
 
@@ -69,7 +84,7 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Inicio de sesión exitoso',
             'user' => $user,
-            'token' => $token 
+            'token' => $token
         ], 200);
     }
 
