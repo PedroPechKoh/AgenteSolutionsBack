@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB; // <-- IMPORTANTE: Añadimos esto para poder escribir en la tabla clients
 
 class AuthController extends Controller
 {
@@ -22,7 +21,7 @@ class AuthController extends Controller
             'phone_number' => 'nullable|string|max:20'
         ]);
 
-        // 2. Guardamos usando los campos correctos de la tabla users
+        // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
             'first_name' => $request->first_name,
             'last_name' => $request->last_name,
@@ -32,20 +31,6 @@ class AuthController extends Controller
             'phone_number' => $request->phone_number ?? null,
             'is_active' => 1
         ]);
-
-        // 👇 LA MAGIA PARA MATAR A LOS USUARIOS FANTASMA 👇
-        // 3. Si el rol es 3 (Cliente), le creamos su perfil automáticamente en la tabla clients
-        if ($user->role_id == 3) {
-            DB::table('clients')->insert([
-                'user_id' => $user->id,
-                'name' => $user->first_name . ' ' . $user->last_name, // Concatenamos el nombre para el perfil
-                'email' => $user->email,
-                'phone' => $user->phone_number ?? 'Sin teléfono',
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-        }
-        // 👆 FIN DE LA MAGIA 👆
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
 

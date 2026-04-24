@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 // Importamos la API pura de Cloudinary (La Opción Nuclear)
-use Cloudinary\Cloudinary; 
+use Cloudinary\Cloudinary;
 
 class PropertyController extends Controller
 {
@@ -38,12 +38,18 @@ class PropertyController extends Controller
 
         if ($user->role_id == 3) {
             $cliente = DB::table('clients')->where('user_id', $user->id)->first();
+
+            // 🔥 MODO PRUEBAS ACTIVADO 🔥
+            // Si el usuario es fantasma y no tiene perfil en 'clients', 
+            // no lanzamos error, simplemente le prestamos el client_id = 1
             if (!$cliente) {
-                return response()->json(['error' => 'No se encontró el perfil de cliente asociado a este usuario.'], 404);
+                $clientId = 1;
+            } else {
+                $clientId = $cliente->id;
             }
-            $clientId = $cliente->id;
         } else {
-            $clientId = $request->client_id;
+            // Aseguramos que si no viene client_id desde React, también use el 1 por defecto
+            $clientId = $request->client_id ?? 1;
         }
 
         // --- SUBIDA A CLOUDINARY (Fachadas) ---
@@ -82,7 +88,7 @@ class PropertyController extends Controller
         $property->coordinates = $request->coordinates;
         $property->custom_curp = $custom_curp;
         $property->property_name = $request->property_name;
-        
+
         // GUARDAMOS LA URL DIRECTA DE LA NUBE (O NULL SI NO SUBIERON NADA)
         $property->facade_photo_path = $uploadedFileUrl;
 
@@ -117,7 +123,9 @@ class PropertyController extends Controller
                 if ($cliente) {
                     $query->where('client_id', $cliente->id);
                 } else {
-                    return response()->json([], 200); // Cliente sin perfil = 0 propiedades
+                    // 🔥 MODO PRUEBAS ACTIVADO 🔥
+                    // Para que el usuario de prueba de iOS pueda ver la casa que acaba de crear
+                    $query->where('client_id', 1);
                 }
             }
 
@@ -139,7 +147,6 @@ class PropertyController extends Controller
                     'tipo' => strtoupper($p->type),
                     'curp' => $p->custom_curp,
                     'coordenadas' => $p->coordinates,
-                    // YA NO USAMOS asset('storage/...'), LA URL YA VIENE COMPLETA DE CLOUDINARY
                     'foto_url' => $p->facade_photo_path,
                     'created_at' => $p->created_at,
                     'has_pending_service' => $tienePendiente
@@ -215,7 +222,7 @@ class PropertyController extends Controller
             $cotizacionesCount = 0;
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
-            
+
             return response()->json([
                 'propiedad' => $propiedad,
                 'stats' => [
@@ -233,7 +240,7 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
+
     // ---------------------------------------------------
     // 5. GUARDAR ÓRDENES DE TRABAJO
     // ---------------------------------------------------
@@ -251,7 +258,7 @@ class PropertyController extends Controller
                 'equipment' => $request->equipo,
                 'description' => $request->descripcion,
                 'evidence_path' => $path,
-                'status' => 'Por Hacer', 
+                'status' => 'Por Hacer',
                 'priority' => 'Normal',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -263,7 +270,7 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
+
     // ---------------------------------------------------
     // 6. OBTENER ÓRDENES DE TRABAJO
     // ---------------------------------------------------
@@ -284,7 +291,7 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-    
+
     // ---------------------------------------------------
     // 7. ACTUALIZAR ESTADO DE ÓRDENES
     // ---------------------------------------------------
