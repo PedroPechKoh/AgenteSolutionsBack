@@ -22,6 +22,8 @@ use App\Http\Controllers\NotificationController;
 // ========================================================
 
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
+
 
 // Registro Privado (Exclusivo para el Admin)
 Route::post('/registro-usuario', [AuthController::class, 'registro']);

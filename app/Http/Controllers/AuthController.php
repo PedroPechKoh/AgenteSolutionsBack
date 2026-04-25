@@ -78,4 +78,23 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Sesión cerrada correctamente'], 200);
     }
+
+    public function recoverPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|exists:users,email',
+            'new_password' => 'required|string|min:6'
+        ], [
+            'email.exists' => 'No encontramos ninguna cuenta con ese correo electrónico.'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Contraseña actualizada correctamente.'
+        ]);
+    }
 }
