@@ -23,11 +23,14 @@ class VisitConfirmed extends Notification
 
     public function toArray($notifiable)
     {
+        $this->service->load('property.client');
+        $clienteNombre = ($this->service->property && $this->service->property->client) ? $this->service->property->client->name : 'El cliente';
+
         return [
             'service_id' => $this->service->id,
             'alert_type' => 'visit_confirmed',
             'title' => '¡Visita Confirmada!',
-            'message' => "El cliente ha aceptado la fecha programada para el levantamiento #{$this->service->id}.",
+            'message' => "{$clienteNombre} ha aceptado la fecha programada para el levantamiento #{$this->service->id}.",
             'url' => "/levantamientos"
         ];
     }

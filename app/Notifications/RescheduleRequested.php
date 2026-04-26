@@ -25,12 +25,14 @@ class RescheduleRequested extends Notification
 
     public function toArray($notifiable)
     {
-        
+        $this->service->load('property.client');
+        $clienteNombre = ($this->service->property && $this->service->property->client) ? $this->service->property->client->name : 'El cliente';
+
         return [
             'service_id' => $this->service->id,
             'alert_type' => 'reschedule_request',
             'title' => 'Solicitud de Reprogramación',
-            'message' => "El cliente ha solicitado cambiar la visita del servicio #{$this->service->id} para el: {$this->suggestedDate}.",
+            'message' => "{$clienteNombre} ha solicitado cambiar la visita del servicio #{$this->service->id} para el: {$this->suggestedDate}.",
             'url' => "/detalle-reporte/{$this->service->id}"
         ];
     }

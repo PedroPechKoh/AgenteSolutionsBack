@@ -23,11 +23,14 @@ class NewServiceRequested extends Notification
 
     public function toArray($notifiable)
     {
+        $this->service->load('property.client');
+        $clienteNombre = ($this->service->property && $this->service->property->client) ? $this->service->property->client->name : 'Un cliente';
+
         return [
             'service_id' => $this->service->id,
             'alert_type' => 'new_service_requested',
             'title' => '¡Nueva Solicitud de Levantamiento!',
-            'message' => "Se ha solicitado un nuevo levantamiento (ID: #{$this->service->id}) y está esperando que le asignes un técnico.",
+            'message' => "{$clienteNombre} ha solicitado un nuevo levantamiento (ID: #{$this->service->id}) y está esperando que le asignes un técnico.",
             'url' => "/levantamientos" 
         ];
     }
