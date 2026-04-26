@@ -85,7 +85,7 @@ class QuoteController extends Controller
                                     'tipo' => $quote->type,
                                     'concepto' => $quote->concept,
                                     'observaciones' => $quote->observations,
-                                    'archivo_url' => $quote->file_path ? asset('storage/' . $quote->file_path) : null
+                                    'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
                                 ];
                             });
 
