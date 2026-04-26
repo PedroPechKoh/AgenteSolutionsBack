@@ -38,7 +38,7 @@ class QuoteController extends Controller
                     
                     $respuestaNube = $cloudinary->uploadApi()->upload($request->file('file')->getRealPath(), [
                         'folder' => 'cotizaciones_pdf',
-                        'resource_type' => 'auto' 
+                        'resource_type' => 'raw' 
                     ]);
 
                     $quote->file_path = $respuestaNube['secure_url'];
@@ -179,10 +179,10 @@ public function finalizarCotizacion(Request $request, $id)
                 $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
                 
                 // Subimos el archivo a la carpeta 'cotizaciones_pdf'
-                // NOTA CRÍTICA: Se debe especificar resource_type => 'raw' o 'auto' para PDFs, de lo contrario falla
+                // NOTA CRÍTICA: Se usa resource_type => 'raw' para PDFs para evitar el error 401 de Cloudinary
                 $respuestaNube = $cloudinary->uploadApi()->upload($request->file('pdf')->getRealPath(), [
                     'folder' => 'cotizaciones_pdf',
-                    'resource_type' => 'auto' 
+                    'resource_type' => 'raw' 
                 ]);
 
                 // Guardamos la URL segura
