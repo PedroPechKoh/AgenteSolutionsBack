@@ -90,7 +90,7 @@ class ServiceController extends Controller
     {
         try {
             $user = $request->user();
-            $query = Service::with(['property', 'technician'])->orderByDesc('created_at');
+            $query = Service::with(['property.client', 'technician'])->orderByDesc('created_at');
 
             if ($user && $user->role_id == 3) {
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
@@ -120,6 +120,8 @@ class ServiceController extends Controller
                     'propiedad_nombre' => $s->property
                         ? (strtoupper($s->property->type) . ' - ' . ($s->property->custom_curp ?? 'SIN CURP'))
                         : 'N/A',
+                        
+                    'cliente_nombre' => ($s->property && $s->property->client) ? $s->property->client->name : 'Usuario',
 
                     'direccion' => $s->property ? $s->property->address : 'N/A',
                     'fecha_programada' => $s->scheduled_start
