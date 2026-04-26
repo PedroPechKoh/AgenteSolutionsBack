@@ -34,15 +34,29 @@ class QuoteController extends Controller
             // Si es archivo, subimos el documento
             else {
                 if ($request->hasFile('file')) {
-                    // Guarda en storage/app/public/quotes
-                    $path = $request->file('file')->store('quotes', 'public');
-                    $quote->file_path = $path;
+                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                    
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('file')->getRealPath(), [
+                        'folder' => 'cotizaciones_pdf',
+                        'resource_type' => 'auto' 
+                    ]);
+
+                    $quote->file_path = $respuestaNube['secure_url'];
                 } else {
                     return response()->json(['error' => 'No se adjuntó ningún archivo'], 400);
                 }
             }
 
             $quote->save();
+
+            // Notificar al cliente
+            $quote->load('service.property.client');
+            if ($quote->service && $quote->service->property && $quote->service->property->client && $quote->service->property->client->user_id) {
+                $clienteUser = User::find($quote->service->property->client->user_id);
+                if ($clienteUser) {
+                    \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteAvailable($quote));
+                }
+            }
 
             return response()->json(['message' => 'Cotización guardada exitosamente', 'quote' => $quote], 201);
 
