@@ -22,7 +22,12 @@ class Service extends Model
         'scheduled_end',
         'real_start',
         'real_end',
-        'supervisor_name'
+        'supervisor_name',
+        'custom_checklist'
+    ];
+
+    protected $casts = [
+        'custom_checklist' => 'array',
     ];
 
     public function property()

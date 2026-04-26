@@ -158,8 +158,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/servicios/{id}', [ServiceController::class, 'show']);
     Route::put('/servicios/{id}', [ServiceController::class, 'update']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
+    Route::put('/servicios/{id}/asignar-trabajo', [ServiceController::class, 'assignWorkOrder']); // NUEVO
     Route::post('/services/assign', [ServiceController::class, 'store']);
 
+    // --- CHECKLIST TEMPLATES ---
+    Route::get('/checklist-templates', [\App\Http\Controllers\ChecklistTemplateController::class, 'index']);
+    Route::post('/checklist-templates', [\App\Http\Controllers\ChecklistTemplateController::class, 'store']);
     Route::put('/servicios/{id}/confirmar-cliente', [ServiceController::class, 'confirmarCitaCliente']);
     Route::put('/servicios/{id}/solicitar-reprogramacion', [ServiceController::class, 'solicitarReprogramacion']);
 

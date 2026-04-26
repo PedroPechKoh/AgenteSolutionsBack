@@ -174,6 +174,44 @@ class ServiceController extends Controller
     }
 
     // ---------------------------------------------------
+    // ASIGNAR TRABAJO (CON CHECKLIST) A TECNICO
+    // ---------------------------------------------------
+    public function assignWorkOrder(Request $request, $id)
+    {
+        try {
+            $servicio = Service::find($id);
+
+            if (!$servicio) {
+                return response()->json(['success' => false, 'message' => 'Servicio no encontrado'], 404);
+            }
+
+            $servicio->assigned_to = $request->tecnico_id;
+            $servicio->scheduled_start = $request->scheduled_start;
+            $servicio->custom_checklist = $request->custom_checklist; // El JSON del checklist
+            $servicio->status = 'Programado';
+            $servicio->save();
+
+            if ($servicio->assigned_to) {
+                $tecnicoUser = User::find($servicio->assigned_to);
+                if ($tecnicoUser) {
+                    \Illuminate\Support\Facades\Notification::send($tecnicoUser, new \App\Notifications\WorkAssigned($servicio));
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Trabajo y Checklist asignados correctamente al técnico.'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error en la asignación: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ---------------------------------------------------
     // 4. VER DETALLES DE UN REPORTE ESPECÍFICO
     // ---------------------------------------------------
     public function show($id)
