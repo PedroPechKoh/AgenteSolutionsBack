@@ -205,6 +205,50 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
+    // 8. ACTUALIZAR PROPIEDAD (Nombre y Foto)
+    // ---------------------------------------------------
+    public function updateProperty(Request $request, $id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado.'], 401);
+
+            $property = Property::findOrFail($id);
+
+            // Validación
+            $request->validate([
+                'property_name' => 'nullable|string|max:191',
+                'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
+            ]);
+
+            // 1. Actualizar Nombre
+            if ($request->has('property_name')) {
+                $property->property_name = $request->property_name;
+            }
+
+            // 2. Actualizar Foto
+            if ($request->hasFile('facade_photo')) {
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('facade_photo')->getRealPath(), [
+                    'folder' => 'agente_propiedades'
+                ]);
+                $property->facade_photo_path = $respuestaNube['secure_url'];
+            }
+
+            $property->save();
+
+            return response()->json([
+                'message' => 'Propiedad actualizada con éxito',
+                'property' => $property,
+                'foto_url' => $property->facade_photo_path 
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al actualizar: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // ---------------------------------------------------
     // 4. DATOS DEL DASHBOARD DE LA PROPIEDAD
     // ---------------------------------------------------
     public function getDashboardData($id)
