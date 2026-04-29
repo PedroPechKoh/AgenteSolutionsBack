@@ -232,6 +232,7 @@ class ServiceController extends Controller
                 'direccion' => $servicio->property ? $servicio->property->address : 'Dirección no registrada',
                 'coordenadas' => $servicio->property ? $servicio->property->coordinates : null,
                 'tipoPropiedad' => $servicio->property ? strtoupper($servicio->property->type) : 'N/A',
+                'foto_fachada' => $servicio->property ? $servicio->property->facade_photo_path : null,
 
                 'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
                 'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
