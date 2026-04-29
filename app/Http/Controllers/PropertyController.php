@@ -153,6 +153,11 @@ class PropertyController extends Controller
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                     ->exists();
 
+                $levantamiento = DB::table('services')
+                    ->where('property_id', $p->id)
+                    ->where('title', 'Levantamiento Inicial')
+                    ->first();
+
                 return [
                     'id' => $p->id,
                     'client_id' => $p->client_id,
@@ -166,7 +171,9 @@ class PropertyController extends Controller
                     'coordenadas' => $p->coordinates,
                     'foto_url' => $p->facade_photo_path,
                     'created_at' => $p->created_at,
-                    'has_pending_service' => $tienePendiente
+                    'has_pending_service' => $tienePendiente,
+                    'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
+                    'levantamiento_realizado' => $levantamiento ? true : false,
                 ];
             });
 
