@@ -156,6 +156,7 @@ class PropertyController extends Controller
                 return [
                     'id' => $p->id,
                     'client_id' => $p->client_id,
+                    'client_email' => $p->client ? $p->client->email : null,
                     'propietario' => $p->client ? $p->client->name : 'Sin Propietario',
                     'nombre_propiedad' => $p->property_name ?? 'Propiedad sin nombre',
                     'direccion' => $p->address,

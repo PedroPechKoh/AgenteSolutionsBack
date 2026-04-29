@@ -46,6 +46,7 @@ Route::post('/registro-cliente', function (\Illuminate\Http\Request $request) {
 
             // 2. Insertamos en clientes juntando el nombre para esa tabla
             \Illuminate\Support\Facades\DB::table('clients')->insert([
+                'user_id' => $userId,
                 'name' => trim($request->first_name . ' ' . $request->last_name),
                 'email' => $request->email,
                 'phone' => $request->phone,
