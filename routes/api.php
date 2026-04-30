@@ -216,3 +216,55 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
     Route::post('/cotizaciones/{id}/finalizar', [QuoteController::class, 'finalizarCotizacion']);
 });
+
+Route::get('/admin/dashboard-stats', function () {
+    // 1. Clientes totales
+    $totalClientes = \Illuminate\Support\Facades\DB::table('clients')->count();
+
+    // 2. Levantamientos por día (últimos 7 días)
+    $levantamientos = \Illuminate\Support\Facades\DB::table('services')
+        ->selectRaw('DATE_FORMAT(created_at, "%d/%m") as name, COUNT(*) as qty')
+        ->groupBy('name')
+        ->orderBy('name', 'ASC')
+        ->limit(7)
+        ->get();
+
+    // 3. Productos que más se reparan (Top 5)
+    $productosMasReparados = \Illuminate\Support\Facades\DB::table('property_components')
+        ->join('services', 'property_components.id', '=', 'services.property_id') // Ajusta según tu relación
+        ->select('property_components.name', \Illuminate\Support\Facades\DB::raw('count(*) as value'))
+        ->groupBy('property_components.name')
+        ->orderBy('value', 'DESC')
+        ->limit(5)
+        ->get();
+
+    // 4. Técnicos con más trabajos
+    $topTecnicos = \Illuminate\Support\Facades\DB::table('users')
+        ->join('services', 'users.id', '=', 'services.technician_id') // Ajusta el nombre de la columna
+        ->select('users.first_name as name', \Illuminate\Support\Facades\DB::raw('count(*) as cantidad'))
+        ->groupBy('users.first_name')
+        ->orderBy('cantidad', 'DESC')
+        ->limit(5)
+        ->get();
+
+    // 5. Tipos de trabajo más frecuentes (Categorías)
+    $tiposTrabajo = [
+        ['name' => 'Electricidad', 'value' => \App\Models\Service::where('description', 'like', '%electr%')->count()],
+        ['name' => 'Plomería', 'value' => \App\Models\Service::where('description', 'like', '%plom%')->count()],
+        ['name' => 'Aire Acond.', 'value' => \App\Models\Service::where('description', 'like', '%aire%')->count()],
+        ['name' => 'Otros', 'value' => \App\Models\Service::where('description', 'not like', '%electr%')->where('description', 'not like', '%plom%')->count()],
+    ];
+
+    return response()->json([
+        'kpis' => [
+            'clientes' => $totalClientes,
+            'usuarios' => \App\Models\User::count(),
+            'propiedades' => \App\Models\Property::count(),
+            'notificaciones' => \App\Models\Notification::whereNull('read_at')->count(),
+        ],
+        'levantamientos' => $levantamientos,
+        'productosReparados' => $productosMasReparados,
+        'topTecnicos' => $topTecnicos,
+        'tiposTrabajo' => $tiposTrabajo
+    ]);
+});
