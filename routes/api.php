@@ -216,3 +216,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
     Route::post('/cotizaciones/{id}/finalizar', [QuoteController::class, 'finalizarCotizacion']);
 });
+
