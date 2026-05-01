@@ -232,6 +232,7 @@ class ServiceController extends Controller
                 'direccion' => $servicio->property ? $servicio->property->address : 'Dirección no registrada',
                 'coordenadas' => $servicio->property ? $servicio->property->coordinates : null,
                 'tipoPropiedad' => $servicio->property ? strtoupper($servicio->property->type) : 'N/A',
+                'propiedad_nombre' => $servicio->property ? $servicio->property->property_name : 'Propiedad Sin Nombre',
                 'foto_fachada' => $servicio->property ? $servicio->property->facade_photo_path : null,
 
                 'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
@@ -241,6 +242,7 @@ class ServiceController extends Controller
                     return [
                         'titulo' => $area->name,
                         'descripcion' => $area->description,
+                        'foto' => $area->image_path ? (str_starts_with($area->image_path, 'http') ? $area->image_path : asset('storage/' . $area->image_path)) : null,
                         'subSecciones' => $area->components->groupBy('category')->map(function ($items, $categoriaNombre) {
                             return [
                                 'nombre' => $categoriaNombre,
