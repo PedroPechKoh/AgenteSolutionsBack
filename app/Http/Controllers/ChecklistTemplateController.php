@@ -21,8 +21,8 @@ class ChecklistTemplateController extends Controller
         ]);
 
         $template = ChecklistTemplate::create([
-            'name' => $request->name,
-            'content' => $request->content,
+            'name' => $request->input('name'),
+            'content' => $request->input('content'),
         ]);
 
         return response()->json(['message' => 'Plantilla guardada', 'template' => $template], 201);

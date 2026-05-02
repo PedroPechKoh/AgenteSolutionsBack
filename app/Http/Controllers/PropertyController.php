@@ -380,4 +380,33 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    // ---------------------------------------------------
+    // 8. OBTENER PROPIEDAD POR CURP
+    // ---------------------------------------------------
+    public function getByCurp($curp)
+    {
+        try {
+            // Eliminar espacios adicionales y normalizar para la búsqueda
+            // En la base de datos el custom_curp puede no tener espacios, pero la URL podría tenerlos o guiones.
+            // La URL actual de RegistroZonas manda: CA YUC MER COR 69 273 RFT (con espacios)
+            // En store(), se genera así: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
+            
+            // Primero, intentamos buscarlo tal cual, si no, reemplazamos espacios por guiones o viceversa
+            $curpConGuiones = str_replace(' ', '-', $curp);
+            
+            $property = Property::where('custom_curp', $curp)
+                                ->orWhere('custom_curp', $curpConGuiones)
+                                ->first();
+
+            if (!$property) {
+                return response()->json(['error' => 'Propiedad no encontrada para el CURP proporcionado'], 404);
+            }
+
+            return response()->json($property, 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al buscar propiedad por CURP: ' . $e->getMessage()], 500);
+        }
+    }
 }

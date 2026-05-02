@@ -249,10 +249,14 @@ class ServiceController extends Controller
                                 'nota' => 'Generado desde BD',
                                 'inventario' => $items->map(function ($item) {
                                     return [
-                                        'categoria' => $item->sub_category,
+                                        'nombre' => $item->sub_category ?? 'S/N',
+                                        'categoria' => $item->sub_category ?? 'S/N', // Mantenemos por compatibilidad con el frontend
                                         'marca' => $item->brand,
                                         'modelo' => $item->model_or_color,
-                                        'cantidad' => (int) $item->quantity
+                                        'cantidad' => (int) $item->quantity,
+                                        'estado' => $item->status,
+                                        'observaciones' => $item->observations,
+                                        'foto' => $item->image_path ? (str_starts_with($item->image_path, 'http') ? $item->image_path : asset('storage/' . $item->image_path)) : null
                                     ];
                                 })->values()
                             ];
