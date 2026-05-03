@@ -12,4 +12,14 @@ class PropertyArea extends Model
     {
         return $this->hasMany(PropertyComponent::class);
     }
+
+    public function parent()
+    {
+        return $this->belongsTo(PropertyArea::class, 'parent_id');
+    }
+
+    public function subAreas()
+    {
+        return $this->hasMany(PropertyArea::class, 'parent_id');
+    }
 }

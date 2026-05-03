@@ -220,7 +220,8 @@ class ServiceController extends Controller
             $servicio = Service::with([
                 'property.client',
                 'technician',
-                'property.areas.components'
+                'property.areas.components',
+                'property.areas.parent'
             ])->findOrFail($id);
 
             $datos = [
@@ -238,9 +239,13 @@ class ServiceController extends Controller
                 'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
                 'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
 
-                'secciones' => $servicio->property ? $servicio->property->areas->map(function ($area) {
+                'secciones' => $servicio->property ? $servicio->property->areas->filter(function ($area) {
+                    // Solo devolver áreas que son cuartos (tienen padre) o que tengan componentes directamente
+                    return $area->parent_id !== null || $area->components->count() > 0;
+                })->map(function ($area) {
                     return [
                         'titulo' => $area->name,
+                        'zona_nombre' => $area->parent ? $area->parent->name : 'ÁREAS Y HABITACIONES',
                         'descripcion' => $area->description,
                         'foto' => $area->image_path ? (str_starts_with($area->image_path, 'http') ? $area->image_path : asset('storage/' . $area->image_path)) : null,
                         'subSecciones' => $area->components->groupBy('category')->map(function ($items, $categoriaNombre) {
@@ -262,7 +267,7 @@ class ServiceController extends Controller
                             ];
                         })->values()
                     ];
-                }) : []
+                })->values() : []
             ];
 
             return response()->json($datos, 200);
