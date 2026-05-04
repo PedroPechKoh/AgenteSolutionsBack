@@ -243,6 +243,18 @@ class ServiceController extends Controller
                     // Solo devolver áreas que son cuartos (tienen padre) o que tengan componentes directamente
                     return $area->parent_id !== null || $area->components->count() > 0;
                 })->map(function ($area) {
+                    // Obtener todas las categorías registradas para esta área
+                    $categoriasRegistradas = DB::table('property_maintenance_categories')
+                        ->where('property_area_id', $area->id)
+                        ->pluck('name')
+                        ->unique()
+                        ->toArray();
+
+                    $componentesPorCategoria = $area->components->groupBy('category');
+                    
+                    // Combinar nombres de categorías (las de la DB + las que ya tengan componentes)
+                    $nombresCategorias = array_unique(array_merge($categoriasRegistradas, $componentesPorCategoria->keys()->toArray()));
+
                     return [
                         'id' => $area->id,
                         'titulo' => $area->name,
@@ -253,7 +265,8 @@ class ServiceController extends Controller
                         ] : null,
                         'descripcion' => $area->description,
                         'foto' => $area->image_path ? (str_starts_with($area->image_path, 'http') ? $area->image_path : asset('storage/' . $area->image_path)) : null,
-                        'subSecciones' => $area->components->groupBy('category')->map(function ($items, $categoriaNombre) {
+                        'subSecciones' => collect($nombresCategorias)->map(function ($categoriaNombre) use ($componentesPorCategoria) {
+                            $items = $componentesPorCategoria->get($categoriaNombre, collect());
                             return [
                                 'nombre' => $categoriaNombre,
                                 'nota' => 'Generado desde BD',
