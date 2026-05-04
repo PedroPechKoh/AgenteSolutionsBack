@@ -14,9 +14,8 @@ use App\Notifications\NewServiceRequested;
 
 class ServiceController extends Controller
 {
-    // ---------------------------------------------------
-    // 1. CREAR / SOLICITAR LEVANTAMIENTO
-    // ---------------------------------------------------
+    // ... (store, index, assignTechnician, assignWorkOrder methods remain unchanged)
+
     public function store(Request $request)
     {
         try {
@@ -83,9 +82,6 @@ class ServiceController extends Controller
         }
     }
 
-    // ---------------------------------------------------
-    // 2. LISTAR LEVANTAMIENTOS (PARA LA TABLA)
-    // ---------------------------------------------------
     public function index(Request $request)
     {
         try {
@@ -135,9 +131,6 @@ class ServiceController extends Controller
         }
     }
 
-    // ---------------------------------------------------
-    // 3. ASIGNAR TÉCNICO Y PROGRAMAR VISITA
-    // ---------------------------------------------------
     public function assignTechnician(Request $request, $id)
     {
         try {
@@ -156,7 +149,7 @@ class ServiceController extends Controller
                 $clienteUser = User::find($servicio->property->client->user_id);
                 
                 if ($clienteUser) {
-                    Notification::send($clienteUser, new VisitRescheduled($servicio));
+                    Notification::send($clienteUser, new \App\Notifications\VisitRescheduled($servicio));
                 }
             }
 
@@ -173,9 +166,6 @@ class ServiceController extends Controller
         }
     }
 
-    // ---------------------------------------------------
-    // ASIGNAR TRABAJO (CON CHECKLIST) A TECNICO
-    // ---------------------------------------------------
     public function assignWorkOrder(Request $request, $id)
     {
         try {
@@ -187,7 +177,7 @@ class ServiceController extends Controller
 
             $servicio->assigned_to = $request->tecnico_id;
             $servicio->scheduled_start = $request->scheduled_start;
-            $servicio->custom_checklist = $request->custom_checklist; // El JSON del checklist
+            $servicio->custom_checklist = $request->custom_checklist; 
             $servicio->status = 'Programado';
             $servicio->save();
 
@@ -211,9 +201,6 @@ class ServiceController extends Controller
         }
     }
 
-    // ---------------------------------------------------
-    // 4. VER DETALLES DE UN REPORTE ESPECÍFICO
-    // ---------------------------------------------------
     public function show($id)
     {
         try {
@@ -240,10 +227,8 @@ class ServiceController extends Controller
                 'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
 
                 'secciones' => $servicio->property ? $servicio->property->areas->filter(function ($area) {
-                    // Solo devolver áreas que son cuartos (tienen padre) o que tengan componentes directamente
                     return $area->parent_id !== null || $area->components->count() > 0;
                 })->map(function ($area) {
-                    // Obtener todas las categorías registradas para esta área
                     $categoriasRegistradas = DB::table('property_maintenance_categories')
                         ->where('property_area_id', $area->id)
                         ->pluck('name')
@@ -251,8 +236,6 @@ class ServiceController extends Controller
                         ->toArray();
 
                     $componentesPorCategoria = $area->components->groupBy('category');
-                    
-                    // Combinar nombres de categorías (las de la DB + las que ya tengan componentes)
                     $nombresCategorias = array_unique(array_merge($categoriasRegistradas, $componentesPorCategoria->keys()->toArray()));
 
                     return [
@@ -280,7 +263,9 @@ class ServiceController extends Controller
                                         'cantidad' => (int) $item->quantity,
                                         'estado' => $item->status,
                                         'observaciones' => $item->observations,
-                                        'foto' => $item->image_path ? (str_starts_with($item->image_path, 'http') ? $item->image_path : asset('storage/' . $item->image_path)) : null
+                                        'foto' => $item->image_path ? (str_starts_with($item->image_path, 'http') ? $item->image_path : asset('storage/' . $item->image_path)) : null,
+                                        'foto_secundaria' => $item->image_path_secondary ? (str_starts_with($item->image_path_secondary, 'http') ? $item->image_path_secondary : asset('storage/' . $item->image_path_secondary)) : null,
+                                        'galleries' => DB::table('component_galleries')->where('property_component_id', $item->id)->get()
                                     ];
                                 })->values()
                             ];
@@ -296,9 +281,8 @@ class ServiceController extends Controller
         }
     }
 
-    // ---------------------------------------------------
-    // 5. CLIENTE CONFIRMA LA CITA
-    // ---------------------------------------------------
+    // ... (rest of the methods confirmedCitaCliente, solicitarReprogramacion, getTecnicoServicios, update remain unchanged)
+    
     public function confirmarCitaCliente($id)
     {
         try {
@@ -313,13 +297,13 @@ class ServiceController extends Controller
 
             $admins = User::where('role_id', 0)->get();
             
-            Notification::send($admins, new VisitConfirmed($servicio));
+            Notification::send($admins, new \App\Notifications\VisitConfirmed($servicio));
 
             // Enviar notificación al Técnico asignado
             if ($servicio->assigned_to) {
                 $tecnico = User::find($servicio->assigned_to);
                 if ($tecnico) {
-                    Notification::send($tecnico, new VisitConfirmed($servicio));
+                    Notification::send($tecnico, new \App\Notifications\VisitConfirmed($servicio));
                 }
             }
 
@@ -362,7 +346,7 @@ class ServiceController extends Controller
 
             $admins = User::where('role_id', 0)->get();
             
-            Notification::send($admins, new RescheduleRequested($servicio, $request->fecha_sugerida));
+            Notification::send($admins, new \App\Notifications\RescheduleRequested($servicio, $request->fecha_sugerida));
 
             return response()->json([
                 'success' => true,
@@ -376,9 +360,8 @@ class ServiceController extends Controller
             ], 500);
         }
     }
-    ////Asignar trabajos al tencico:
+
     public function getTecnicoServicios($idTecnico) {
-        // Usamos Join para traer los datos de la propiedad y su dueño/cliente
         $servicios = DB::table('services')
             ->join('properties', 'services.property_id', '=', 'properties.id')
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
@@ -397,9 +380,6 @@ class ServiceController extends Controller
         return response()->json($servicios);
     }
 
-    // ---------------------------------------------------
-    // 6. ACTUALIZAR ESTADO DEL SERVICIO (FINALIZAR)
-    // ---------------------------------------------------
     public function update(Request $request, $id)
     {
         try {

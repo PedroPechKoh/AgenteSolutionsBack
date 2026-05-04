@@ -46,18 +46,29 @@ class PropertyComponentController extends Controller
                 'category' => 'required|string',
                 'sub_category' => 'required|string',
                 'quantity' => 'required|numeric',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240'
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
+                'image_secondary' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240'
             ]);
 
-            // Lógica para la IMAGEN PRINCIPAL (Cloudinary)
-            $imagePath = null;
+            // Lógica para Cloudinary
             $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
 
+            // IMAGEN PRINCIPAL
+            $imagePath = null;
             if ($request->hasFile('image')) {
                 $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
                     'folder' => 'agente_componentes' 
                 ]);
                 $imagePath = $respuestaNube['secure_url'];
+            }
+
+            // IMAGEN SECUNDARIA
+            $imagePathSecondary = null;
+            if ($request->hasFile('image_secondary')) {
+                $resSec = $cloudinary->uploadApi()->upload($request->file('image_secondary')->getRealPath(), [
+                    'folder' => 'agente_componentes'
+                ]);
+                $imagePathSecondary = $resSec['secure_url'];
             }
 
             // Insertar en BD
@@ -72,12 +83,13 @@ class PropertyComponentController extends Controller
                 'unit' => $request->unit ?? 'PZA',
                 'status' => $request->status ?? 'Bueno',
                 'observations' => $request->observations ?? '',
-                'image_path' => $imagePath, // Guardamos la URL de Cloudinary
+                'image_path' => $imagePath,
+                'image_path_secondary' => $imagePathSecondary,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
 
-            // Lógica para GALERÍA (Cloudinary)
+            // Lógica para GALERÍA
             if ($request->hasFile('gallery')) {
                 foreach ($request->file('gallery') as $file) {
                     $resGaleria = $cloudinary->uploadApi()->upload($file->getRealPath(), [
@@ -86,7 +98,7 @@ class PropertyComponentController extends Controller
 
                     DB::table('component_galleries')->insert([
                         'property_component_id' => $id,
-                        'image_path' => $resGaleria['secure_url'], // URL de Cloudinary
+                        'image_path' => $resGaleria['secure_url'],
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
@@ -256,15 +268,24 @@ class PropertyComponentController extends Controller
                 return response()->json(['error' => 'No encontrado'], 404);
             }
 
-            $imagePath = $component->image_path;
             $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
 
-            // ACTUALIZAR IMAGEN PRINCIPAL EN CLOUDINARY
+            // ACTUALIZAR IMAGEN PRINCIPAL
+            $imagePath = $component->image_path;
             if ($request->hasFile('image')) {
                 $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
                     'folder' => 'agente_componentes' 
                 ]);
                 $imagePath = $respuestaNube['secure_url'];
+            }
+
+            // ACTUALIZAR IMAGEN SECUNDARIA
+            $imagePathSecondary = $component->image_path_secondary ?? null;
+            if ($request->hasFile('image_secondary')) {
+                $resSec = $cloudinary->uploadApi()->upload($request->file('image_secondary')->getRealPath(), [
+                    'folder' => 'agente_componentes'
+                ]);
+                $imagePathSecondary = $resSec['secure_url'];
             }
 
             DB::table('property_components')->where('id', $id)->update([
@@ -273,8 +294,10 @@ class PropertyComponentController extends Controller
                 'model_or_color' => $request->model_or_color ?? '',
                 'serial_number' => $request->serial_number ?? '',
                 'quantity' => $request->quantity,
+                'status' => $request->status ?? 'Bueno',
                 'observations' => $request->observations ?? '',
                 'image_path' => $imagePath,
+                'image_path_secondary' => $imagePathSecondary,
                 'updated_at' => now(),
             ]);
 
