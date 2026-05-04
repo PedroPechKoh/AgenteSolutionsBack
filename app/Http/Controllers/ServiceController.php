@@ -244,8 +244,13 @@ class ServiceController extends Controller
                     return $area->parent_id !== null || $area->components->count() > 0;
                 })->map(function ($area) {
                     return [
+                        'id' => $area->id,
                         'titulo' => $area->name,
                         'zona_nombre' => $area->parent ? $area->parent->name : 'ÁREAS Y HABITACIONES',
+                        'parent' => $area->parent ? [
+                            'id' => $area->parent->id,
+                            'name' => $area->parent->name
+                        ] : null,
                         'descripcion' => $area->description,
                         'foto' => $area->image_path ? (str_starts_with($area->image_path, 'http') ? $area->image_path : asset('storage/' . $area->image_path)) : null,
                         'subSecciones' => $area->components->groupBy('category')->map(function ($items, $categoriaNombre) {
@@ -254,8 +259,9 @@ class ServiceController extends Controller
                                 'nota' => 'Generado desde BD',
                                 'inventario' => $items->map(function ($item) {
                                     return [
+                                        'id' => $item->id,
                                         'nombre' => $item->sub_category ?? 'S/N',
-                                        'categoria' => $item->sub_category ?? 'S/N', // Mantenemos por compatibilidad con el frontend
+                                        'categoria' => $item->sub_category ?? 'S/N', 
                                         'marca' => $item->brand,
                                         'modelo' => $item->model_or_color,
                                         'cantidad' => (int) $item->quantity,
@@ -276,6 +282,7 @@ class ServiceController extends Controller
             return response()->json(['error' => 'Servicio no encontrado: ' . $e->getMessage()], 404);
         }
     }
+
     // ---------------------------------------------------
     // 5. CLIENTE CONFIRMA LA CITA
     // ---------------------------------------------------
