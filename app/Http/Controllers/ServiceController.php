@@ -11,6 +11,9 @@ use Illuminate\Support\Facades\Notification;
 use App\Notifications\VisitRescheduled;
 use App\Notifications\VisitConfirmed;
 use App\Notifications\NewServiceRequested;
+use App\Models\PropertyArea;
+use Cloudinary\Cloudinary;
+use Illuminate\Support\Facades\Log;
 
 class ServiceController extends Controller
 {
@@ -21,11 +24,14 @@ class ServiceController extends Controller
         try {
             $request->validate([
                 'property_id' => 'required|exists:properties,id',
-                'title' => 'required|string|max:191',
+                'title' => 'nullable|string|max:191',
+                'property_area_id' => 'nullable|exists:property_areas,id',
+                'foto' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
             ]);
 
             $servicio = new Service();
             $servicio->property_id = $request->property_id;
+            $servicio->property_area_id = $request->property_area_id;
 
             $user = $request->user();
             if ($user && $user->role_id == 3) {
@@ -34,11 +40,36 @@ class ServiceController extends Controller
                  $servicio->requested_by = $request->filled('requested_by') ? $request->requested_by : null;
             }
 
+            // --- SUBIDA A CLOUDINARY ---
+            if ($request->hasFile('foto')) {
+                try {
+                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('foto')->getRealPath(), [
+                        'folder' => 'agente_servicios'
+                    ]);
+                    $servicio->evidence_path = $respuestaNube['secure_url'];
+                } catch (\Exception $e) {
+                    Log::error("Error subiendo evidencia a Cloudinary: " . $e->getMessage());
+                }
+            }
+
             $servicio->service_category_id = $request->service_category_id ?? 1;
             $servicio->service_type = $request->service_type ?? $request->type ?? 'Mantenimiento';
             $servicio->priority = $request->priority ?? 'Media';
             $servicio->status = 'Por Asignar'; 
-            $servicio->title = $request->title;
+            
+            // Generar título si no viene
+            if (!$request->filled('title')) {
+                $areaName = 'General';
+                if ($request->property_area_id) {
+                    $area = PropertyArea::find($request->property_area_id);
+                    if ($area) $areaName = $area->name;
+                }
+                $servicio->title = "Reporte: " . $areaName;
+            } else {
+                $servicio->title = $request->title;
+            }
+
             $servicio->supervisor_name = $request->supervisor_name;
             $servicio->description = $request->description;
 
