@@ -3,6 +3,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Cloudinary\Cloudinary;
 use App\Http\Controllers\ApplianceController;
 use Illuminate\Support\Facades\Hash;
@@ -277,8 +278,10 @@ Route::middleware('auth:sanctum')->group(function () {
             
             // Obtenemos administradores (rol 1 y 0)
             $admins = User::whereIn('role_id', [0, 1])->get();
+            \Log::info("Enviando notificación de WorkOrder. Admins encontrados: " . $admins->count());
             
             Notification::send($admins, new NewWorkOrderNotification($workOrder, $userName, $propertyName));
+            \Log::info("Notificación enviada con éxito.");
         } catch (\Exception $e) {
             \Log::error("Error enviando notificación de WorkOrder: " . $e->getMessage());
         }

@@ -23,8 +23,8 @@ class NewWorkOrderNotification extends Notification
 
     public function via($notifiable)
     {
-        // Enviamos por base de datos (para la campana en la app) y por correo
-        return ['database', 'mail'];
+        // Por ahora solo base de datos para asegurar que llegue la notificación a la campana
+        return ['database'];
     }
 
     public function toMail($notifiable)
