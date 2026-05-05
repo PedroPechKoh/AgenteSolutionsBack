@@ -10,6 +10,7 @@ class Service extends Model
     use HasFactory;
     protected $fillable = [
         'property_id',
+        'property_area_id',
         'requested_by',
         'assigned_to',
         'service_category_id',
@@ -18,6 +19,7 @@ class Service extends Model
         'status',
         'title',
         'description',
+        'evidence_path',
         'scheduled_start',
         'scheduled_end',
         'real_start',
@@ -33,6 +35,11 @@ class Service extends Model
     public function property()
     {
         return $this->belongsTo(Property::class, 'property_id');
+    }
+
+    public function area()
+    {
+        return $this->belongsTo(PropertyArea::class, 'property_area_id');
     }
 
     public function technician()
