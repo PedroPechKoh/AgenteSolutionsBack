@@ -18,6 +18,8 @@ use App\Http\Controllers\PropertyComponentController;
 use App\Http\Controllers\PropertyAreaController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\NotificationController;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\NewWorkOrderNotification;
 
 // ========================================================
 // 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
@@ -262,6 +264,24 @@ Route::middleware('auth:sanctum')->group(function () {
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+
+        // 4. Notificaciones (App y Correo)
+        try {
+            $user = $request->user();
+            $userName = $user ? ($user->first_name . ' ' . $user->last_name) : 'Un cliente';
+            
+            $propiedad = DB::table('properties')->where('id', $request->property_id)->first();
+            $propertyName = $propiedad ? ($propiedad->nombre_propiedad ?: $propiedad->address) : 'Propiedad desconocida';
+            
+            $workOrder = DB::table('work_orders')->where('id', $workOrderId)->first();
+            
+            // Obtenemos administradores (rol 1 y 0)
+            $admins = User::whereIn('role_id', [0, 1])->get();
+            
+            Notification::send($admins, new NewWorkOrderNotification($workOrder, $userName, $propertyName));
+        } catch (\Exception $e) {
+            \Log::error("Error enviando notificación de WorkOrder: " . $e->getMessage());
+        }
 
         return response()->json([
             'success' => true,
