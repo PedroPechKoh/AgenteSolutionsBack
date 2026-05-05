@@ -21,6 +21,7 @@ use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewWorkOrderNotification;
+use App\Models\WorkOrder;
 
 // ========================================================
 // 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
@@ -251,19 +252,17 @@ Route::middleware('auth:sanctum')->group(function () {
             $path2 = $resp2['secure_url'];
         }
 
-        // 3. Insertar en la BD con ambos paths
-        $workOrderId = DB::table('work_orders')->insertGetId([
+        // 3. Insertar en la BD usando el Modelo Eloquent
+        $workOrder = WorkOrder::create([
             'property_id' => $request->property_id,
             'type' => $request->type,
             'zone' => $request->zone,
             'equipment' => $request->equipment,
             'description' => $request->description,
-            'evidence_path' => $path1,       // <-- Foto 1
-            'evidence_path_2' => $path2,     // <-- Foto 2
+            'evidence_path' => $path1,
+            'evidence_path_2' => $path2,
             'status' => 'Por Hacer',
             'priority' => $request->type === 'Problema' ? 'Urgente' : 'Normal',
-            'created_at' => now(),
-            'updated_at' => now(),
         ]);
 
         // 4. Notificaciones (App y Correo)
@@ -271,20 +270,18 @@ Route::middleware('auth:sanctum')->group(function () {
             $user = $request->user();
             $userName = $user ? ($user->first_name . ' ' . $user->last_name) : 'Un cliente';
             
-            $propiedad = DB::table('properties')->where('id', $request->property_id)->first();
-            $propertyName = $propiedad ? ($propiedad->nombre_propiedad ?: $propiedad->address) : 'Propiedad desconocida';
-            
-            $workOrder = DB::table('work_orders')->where('id', $workOrderId)->first();
+            // Usamos relaciones de Eloquent para obtener la propiedad
+            $propertyName = $workOrder->property ? ($workOrder->property->nombre_propiedad ?: $workOrder->property->address) : 'Propiedad desconocida';
             
             // Obtenemos administradores (rol 1 y 0)
             $admins = User::whereIn('role_id', [0, 1])->get();
             \Log::info("Enviando notificación de WorkOrder. Admins encontrados: " . $admins->count());
             
-            // Para pruebas, también notificamos al usuario que está haciendo el reporte
+            // Notificamos a los admins y al usuario actual para confirmar
             $notifiables = $admins->merge([$user]);
             
             Notification::send($notifiables, new NewWorkOrderNotification($workOrder, $userName, $propertyName));
-            \Log::info("Notificación enviada con éxito.");
+            \Log::info("Notificación enviada correctamente vía Eloquent.");
         } catch (\Exception $e) {
             \Log::error("Error enviando notificación de WorkOrder: " . $e->getMessage());
         }
