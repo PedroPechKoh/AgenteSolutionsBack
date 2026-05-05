@@ -7,6 +7,10 @@ use App\Models\Property;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Models\WorkOrder;
+use App\Models\User;
+use App\Notifications\WorkOrderAssigned;
+use Illuminate\Support\Facades\Notification;
 // Importamos la API pura de Cloudinary (La Opción Nuclear)
 use Cloudinary\Cloudinary;
 
@@ -407,6 +411,36 @@ class PropertyController extends Controller
 
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al buscar propiedad por CURP: ' . $e->getMessage()], 500);
+        }
+    }
+
+    // ---------------------------------------------------
+    // 9. ASIGNAR TÉCNICO A ORDEN DE TRABAJO
+    // ---------------------------------------------------
+    public function assignWorkOrder(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'tecnico_id' => 'required|exists:users,id'
+            ]);
+
+            $workOrder = WorkOrder::with('property')->findOrFail($id);
+            $workOrder->tecnico_id = $request->tecnico_id;
+            $workOrder->save();
+
+            // Enviar notificación al técnico
+            $tecnico = User::find($request->tecnico_id);
+            if ($tecnico) {
+                Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Técnico asignado correctamente',
+                'tecnico_nombre' => $tecnico->first_name . ' ' . $tecnico->last_name
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 }

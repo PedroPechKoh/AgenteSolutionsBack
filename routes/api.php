@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrder']);
     Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
     Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
+    Route::put('/work-orders/{id}/assign', [PropertyController::class, 'assignWorkOrder']);
 
     // --- GESTIÓN DE ZONAS (NIVEL 3 y 4) ---
     Route::post('/property-areas', [PropertyAreaController::class, 'store']);
@@ -295,7 +296,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Nuevo: Obtener todas las órdenes de trabajo para el admin
     Route::get('/work-orders/all', function () {
-        return \App\Models\WorkOrder::with(['property'])->orderBy('created_at', 'desc')->get();
+        return \App\Models\WorkOrder::with(['property', 'tecnico'])->orderBy('created_at', 'desc')->get();
     });
 
 });

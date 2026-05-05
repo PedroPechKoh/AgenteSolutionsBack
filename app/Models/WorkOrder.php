@@ -28,4 +28,9 @@ class WorkOrder extends Model
     {
         return $this->belongsTo(Property::class, 'property_id');
     }
+
+    public function tecnico()
+    {
+        return $this->belongsTo(User::class, 'tecnico_id');
+    }
 }
