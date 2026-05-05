@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Http\Controllers;
 
@@ -11,7 +11,7 @@ use App\Models\WorkOrder;
 use App\Models\User;
 use App\Notifications\WorkOrderAssigned;
 use Illuminate\Support\Facades\Notification;
-// Importamos la API pura de Cloudinary (La OpciÃ³n Nuclear)
+// Importamos la API pura de Cloudinary (La Opción Nuclear)
 use Cloudinary\Cloudinary;
 
 class PropertyController extends Controller
@@ -29,20 +29,20 @@ class PropertyController extends Controller
             'calle' => 'required|string',
             'numero' => 'required|string',
             'property_name' => 'nullable|string|max:191',
-            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // LÃ­mite de 10MB
+            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // Límite de 10MB
         ]);
 
         // FORZAMOS LA LECTURA DESDE SANCTUM (El Gafete)
         $user = auth('sanctum')->user();
         if (!$user) {
-            return response()->json(['error' => 'No autorizado. Token invÃ¡lido o ausente.'], 401);
+            return response()->json(['error' => 'No autorizado. Token inválido o ausente.'], 401);
         }
 
         $clientId = null;
 
         if ($user->role_id == 3) {
 
-            // ðŸ”¥ AUTO-REPARADOR NIVEL DIOS ðŸ”¥
+            // 🔥 AUTO-REPARADOR NIVEL DIOS 🔥
             // Buscamos por ID o por Correo para que no haya duplicados
             $cliente = DB::table('clients')
                 ->where('user_id', $user->id)
@@ -55,12 +55,12 @@ class PropertyController extends Controller
                     'user_id' => $user->id,
                     'name' => trim($user->first_name . ' ' . $user->last_name) ?: 'Cliente Web',
                     'email' => $user->email,
-                    'phone' => $user->phone_number ?? 'Sin telÃ©fono',
+                    'phone' => $user->phone_number ?? 'Sin teléfono',
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
             } else {
-                // 2. Si ya existÃ­a el correo pero estaba desvinculado de este nuevo ID, lo reconectamos silenciosamente
+                // 2. Si ya existía el correo pero estaba desvinculado de este nuevo ID, lo reconectamos silenciosamente
                 if ($cliente->user_id !== $user->id) {
                     DB::table('clients')->where('id', $cliente->id)->update([
                         'user_id' => $user->id
@@ -83,7 +83,7 @@ class PropertyController extends Controller
             $uploadedFileUrl = $respuestaNube['secure_url'];
         }
 
-        // LÃ³gica de CURP Personalizado
+        // Lógica de CURP Personalizado
         $tipo = strtoupper(substr($request->type, 0, 2));
         $estado_limpio = Str::ascii($request->estado);
         $estado_curp = strtoupper(substr($estado_limpio, 0, 3));
@@ -116,7 +116,7 @@ class PropertyController extends Controller
         $property->save();
 
         return response()->json([
-            'message' => 'Propiedad guardada con Ã©xito',
+            'message' => 'Propiedad guardada con éxito',
             'property' => $property
         ], 201);
     }
@@ -132,7 +132,7 @@ class PropertyController extends Controller
 
             if (!$user) {
                 return response()->json([
-                    'error' => 'No autorizado. El token es invÃ¡lido o no se recibiÃ³ correctamente.'
+                    'error' => 'No autorizado. El token es inválido o no se recibió correctamente.'
                 ], 401);
             }
 
@@ -144,7 +144,7 @@ class PropertyController extends Controller
                 if ($cliente) {
                     $query->where('client_id', $cliente->id);
                 } else {
-                    // Si el usuario no tiene perfil, le devolvemos una lista vacÃ­a
+                    // Si el usuario no tiene perfil, le devolvemos una lista vacía
                     return response()->json([], 200);
                 }
             }
@@ -209,7 +209,7 @@ class PropertyController extends Controller
 
             $property->delete();
 
-            return response()->json(['message' => 'Propiedad eliminada con Ã©xito'], 200);
+            return response()->json(['message' => 'Propiedad eliminada con éxito'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al eliminar la propiedad: ' . $e->getMessage()], 500);
         }
@@ -226,7 +226,7 @@ class PropertyController extends Controller
 
             $property = Property::findOrFail($id);
 
-            // ValidaciÃ³n
+            // Validación
             $request->validate([
                 'property_name' => 'nullable|string|max:191',
                 'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
@@ -249,7 +249,7 @@ class PropertyController extends Controller
             $property->save();
 
             return response()->json([
-                'message' => 'Propiedad actualizada con Ã©xito',
+                'message' => 'Propiedad actualizada con éxito',
                 'property' => $property,
                 'foto_url' => $property->facade_photo_path 
             ], 200);
@@ -314,7 +314,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 5. GUARDAR Ã“RDENES DE TRABAJO
+    // 5. GUARDAR ÓRDENES DE TRABAJO
     // ---------------------------------------------------
     public function storeWorkOrder(Request $request)
     {
@@ -344,7 +344,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 6. OBTENER Ã“RDENES DE TRABAJO
+    // 6. OBTENER ÓRDENES DE TRABAJO
     // ---------------------------------------------------
     public function getWorkOrders($id)
     {
@@ -365,7 +365,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 7. ACTUALIZAR ESTADO DE Ã“RDENES
+    // 7. ACTUALIZAR ESTADO DE ÓRDENES
     // ---------------------------------------------------
     public function updateWorkOrderStatus(Request $request, $id)
     {
@@ -391,10 +391,10 @@ class PropertyController extends Controller
     public function getByCurp($curp)
     {
         try {
-            // Eliminar espacios adicionales y normalizar para la bÃºsqueda
-            // En la base de datos el custom_curp puede no tener espacios, pero la URL podrÃ­a tenerlos o guiones.
+            // Eliminar espacios adicionales y normalizar para la búsqueda
+            // En la base de datos el custom_curp puede no tener espacios, pero la URL podría tenerlos o guiones.
             // La URL actual de RegistroZonas manda: CA YUC MER COR 69 273 RFT (con espacios)
-            // En store(), se genera asÃ­: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
+            // En store(), se genera así: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
             
             // Primero, intentamos buscarlo tal cual, si no, reemplazamos espacios por guiones o viceversa
             $curpConGuiones = str_replace(' ', '-', $curp);
@@ -415,7 +415,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 9. ASIGNAR TÃ‰CNICO A ORDEN DE TRABAJO
+    // 9. ASIGNAR TÉCNICO A ORDEN DE TRABAJO
     // ---------------------------------------------------
     public function assignWorkOrder(Request $request, $id)
     {
@@ -428,7 +428,7 @@ class PropertyController extends Controller
             $workOrder->tecnico_id = $request->tecnico_id;
             $workOrder->save();
 
-            // Enviar notificaciÃ³n al tÃ©cnico
+            // Enviar notificación al técnico
             $tecnico = User::find($request->tecnico_id);
             if ($tecnico) {
                 Notification::send($tecnico, new WorkOrderAssigned($workOrder));
@@ -436,7 +436,7 @@ class PropertyController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'TÃ©cnico asignado correctamente',
+                'message' => 'Técnico asignado correctamente',
                 'tecnico_nombre' => $tecnico->first_name . ' ' . $tecnico->last_name
             ]);
         } catch (\Exception $e) {
