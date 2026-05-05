@@ -27,6 +27,8 @@ class ServiceController extends Controller
                 'title' => 'nullable|string|max:191',
                 'property_area_id' => 'nullable|exists:property_areas,id',
                 'foto' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
+                'evidencia_1' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
+                'evidencia_2' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
             ]);
 
             $servicio = new Service();
@@ -41,15 +43,43 @@ class ServiceController extends Controller
             }
 
             // --- SUBIDA A CLOUDINARY ---
+            $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+
+            // Caso retrocompatible (campo 'foto')
             if ($request->hasFile('foto')) {
                 try {
-                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
                     $respuestaNube = $cloudinary->uploadApi()->upload($request->file('foto')->getRealPath(), [
                         'folder' => 'agente_servicios'
                     ]);
                     $servicio->evidence_path = $respuestaNube['secure_url'];
                 } catch (\Exception $e) {
                     Log::error("Error subiendo evidencia a Cloudinary: " . $e->getMessage());
+                }
+            }
+
+            // Evidencia 1
+            if ($request->hasFile('evidencia_1')) {
+                try {
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('evidencia_1')->getRealPath(), [
+                        'folder' => 'agente_servicios'
+                    ]);
+                    $servicio->evidence_path = $respuestaNube['secure_url'];
+                } catch (\Exception $e) {
+                    Log::error("Error subiendo evidencia_1: " . $e->getMessage());
+                }
+            }
+
+            // Evidencia 2
+            if ($request->hasFile('evidencia_2')) {
+                try {
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('evidencia_2')->getRealPath(), [
+                        'folder' => 'agente_servicios'
+                    ]);
+                    // Intentamos guardar en evidence_path_2 si existe el atributo (vía asignación dinámica o si ya está en el modelo)
+                    // Para evitar errores si la columna no existe aún, podemos usar un try catch o verificar Schema
+                    $servicio->evidence_path_2 = $respuestaNube['secure_url'];
+                } catch (\Exception $e) {
+                    Log::error("Error subiendo evidencia_2: " . $e->getMessage());
                 }
             }
 
