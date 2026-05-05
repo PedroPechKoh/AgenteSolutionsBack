@@ -68,7 +68,7 @@ Route::post('/ui/settings/login-background/color', [AppSettingController::class,
 Route::get('/ui/settings/login-settings', [AppSettingController::class, 'getLoginSettings']);
 
 // Limpiar caché de Railway
-Route::get('/limpiar-cache', function() {
+Route::get('/limpiar-cache', function () {
     Artisan::call('config:clear');
     Artisan::call('cache:clear');
     Artisan::call('route:clear');
@@ -96,7 +96,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
     Route::post('/update-photos', function (\Illuminate\Http\Request $request) {
         $user = User::find($request->user_id);
-        if (!$user) return response()->json(['error' => 'User not found'], 404);
+        if (!$user)
+            return response()->json(['error' => 'User not found'], 404);
 
         if ($request->hasFile('profile_picture')) {
             $profilePath = $request->file('profile_picture')->store('profiles', 'public');
@@ -216,5 +217,42 @@ Route::middleware('auth:sanctum')->group(function () {
     ///Cotizaciones
     Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
     Route::post('/cotizaciones/{id}/finalizar', [QuoteController::class, 'finalizarCotizacion']);
-});
 
+    //Solictar servicios
+    Route::post('/work-orders/cliente', function (Request $request) {
+        // 1. Validar ambos archivos (ahora los llamaremos evidence_1 y evidence_2)
+        $request->validate([
+            'property_id' => 'required|integer',
+            'type' => 'required|string',
+            'zone' => 'required|string',
+            'equipment' => 'nullable|string',
+            'description' => 'required|string',
+            'evidence_1' => 'nullable|file|image|max:5120',
+            'evidence_2' => 'nullable|file|image|max:5120'
+        ]);
+
+        // 2. Procesar las imágenes
+        $path1 = $request->hasFile('evidence_1') ? $request->file('evidence_1')->store('work_orders_evidences', 'public') : null;
+        $path2 = $request->hasFile('evidence_2') ? $request->file('evidence_2')->store('work_orders_evidences', 'public') : null;
+
+        // 3. Insertar en la BD con ambos paths
+        $workOrderId = DB::table('work_orders')->insertGetId([
+            'property_id' => $request->property_id,
+            'type' => $request->type,
+            'zone' => $request->zone,
+            'equipment' => $request->equipment,
+            'description' => $request->description,
+            'evidence_path' => $path1,       // <-- Foto 1
+            'evidence_path_2' => $path2,     // <-- Foto 2
+            'status' => 'Pendiente',
+            'priority' => $request->type === 'Problema' ? 'ALTA' : 'MEDIA',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Servicio solicitado con éxito'
+        ], 201);
+    })->middleware('auth:sanctum');
+});
