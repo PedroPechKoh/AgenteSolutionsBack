@@ -3,6 +3,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
+use Cloudinary\Cloudinary;
 use App\Http\Controllers\ApplianceController;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
@@ -232,9 +233,20 @@ Route::middleware('auth:sanctum')->group(function () {
             'evidence_2' => 'nullable|file|image|max:5120'
         ]);
 
-        // 2. Procesar las imágenes
-        $path1 = $request->hasFile('evidence_1') ? $request->file('evidence_1')->store('work_orders_evidences', 'public') : null;
-        $path2 = $request->hasFile('evidence_2') ? $request->file('evidence_2')->store('work_orders_evidences', 'public') : null;
+        // 2. Procesar las imágenes con Cloudinary
+        $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+        
+        $path1 = null;
+        if ($request->hasFile('evidence_1')) {
+            $resp1 = $cloudinary->uploadApi()->upload($request->file('evidence_1')->getRealPath(), ['folder' => 'work_orders_evidences']);
+            $path1 = $resp1['secure_url'];
+        }
+
+        $path2 = null;
+        if ($request->hasFile('evidence_2')) {
+            $resp2 = $cloudinary->uploadApi()->upload($request->file('evidence_2')->getRealPath(), ['folder' => 'work_orders_evidences']);
+            $path2 = $resp2['secure_url'];
+        }
 
         // 3. Insertar en la BD con ambos paths
         $workOrderId = DB::table('work_orders')->insertGetId([
