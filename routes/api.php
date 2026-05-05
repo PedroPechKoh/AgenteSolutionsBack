@@ -245,8 +245,8 @@ Route::middleware('auth:sanctum')->group(function () {
             'description' => $request->description,
             'evidence_path' => $path1,       // <-- Foto 1
             'evidence_path_2' => $path2,     // <-- Foto 2
-            'status' => 'Pendiente',
-            'priority' => $request->type === 'Problema' ? 'ALTA' : 'MEDIA',
+            'status' => 'Por Hacer',
+            'priority' => $request->type === 'Problema' ? 'Urgente' : 'Normal',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
