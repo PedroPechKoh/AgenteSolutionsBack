@@ -126,6 +126,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/propiedades', [PropertyController::class, 'index']);
     Route::post('/registro-propiedad', [PropertyController::class, 'store']);
     Route::delete('/propiedades/{id}', [PropertyController::class, 'destroy']);
+    Route::get('/propiedades/{id}/survey', [PropertyController::class, 'getPropertySurvey']);
     Route::get('/propiedades/{id}/dashboard', [PropertyController::class, 'getDashboardData']);
 
     Route::post('/propiedades/{id}/update', [PropertyController::class, 'updateProperty']);

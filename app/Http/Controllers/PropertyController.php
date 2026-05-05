@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Http\Controllers;
 
@@ -11,7 +11,7 @@ use App\Models\WorkOrder;
 use App\Models\User;
 use App\Notifications\WorkOrderAssigned;
 use Illuminate\Support\Facades\Notification;
-// Importamos la API pura de Cloudinary (La Opción Nuclear)
+// Importamos la API pura de Cloudinary (La OpciÃ³n Nuclear)
 use Cloudinary\Cloudinary;
 
 class PropertyController extends Controller
@@ -29,20 +29,20 @@ class PropertyController extends Controller
             'calle' => 'required|string',
             'numero' => 'required|string',
             'property_name' => 'nullable|string|max:191',
-            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // Límite de 10MB
+            'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240', // LÃ­mite de 10MB
         ]);
 
         // FORZAMOS LA LECTURA DESDE SANCTUM (El Gafete)
         $user = auth('sanctum')->user();
         if (!$user) {
-            return response()->json(['error' => 'No autorizado. Token inválido o ausente.'], 401);
+            return response()->json(['error' => 'No autorizado. Token invÃ¡lido o ausente.'], 401);
         }
 
         $clientId = null;
 
         if ($user->role_id == 3) {
 
-            // 🔥 AUTO-REPARADOR NIVEL DIOS 🔥
+            // ðŸ”¥ AUTO-REPARADOR NIVEL DIOS ðŸ”¥
             // Buscamos por ID o por Correo para que no haya duplicados
             $cliente = DB::table('clients')
                 ->where('user_id', $user->id)
@@ -55,12 +55,12 @@ class PropertyController extends Controller
                     'user_id' => $user->id,
                     'name' => trim($user->first_name . ' ' . $user->last_name) ?: 'Cliente Web',
                     'email' => $user->email,
-                    'phone' => $user->phone_number ?? 'Sin teléfono',
+                    'phone' => $user->phone_number ?? 'Sin telÃ©fono',
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
             } else {
-                // 2. Si ya existía el correo pero estaba desvinculado de este nuevo ID, lo reconectamos silenciosamente
+                // 2. Si ya existÃ­a el correo pero estaba desvinculado de este nuevo ID, lo reconectamos silenciosamente
                 if ($cliente->user_id !== $user->id) {
                     DB::table('clients')->where('id', $cliente->id)->update([
                         'user_id' => $user->id
@@ -83,7 +83,7 @@ class PropertyController extends Controller
             $uploadedFileUrl = $respuestaNube['secure_url'];
         }
 
-        // Lógica de CURP Personalizado
+        // LÃ³gica de CURP Personalizado
         $tipo = strtoupper(substr($request->type, 0, 2));
         $estado_limpio = Str::ascii($request->estado);
         $estado_curp = strtoupper(substr($estado_limpio, 0, 3));
@@ -116,7 +116,7 @@ class PropertyController extends Controller
         $property->save();
 
         return response()->json([
-            'message' => 'Propiedad guardada con éxito',
+            'message' => 'Propiedad guardada con Ã©xito',
             'property' => $property
         ], 201);
     }
@@ -132,7 +132,7 @@ class PropertyController extends Controller
 
             if (!$user) {
                 return response()->json([
-                    'error' => 'No autorizado. El token es inválido o no se recibió correctamente.'
+                    'error' => 'No autorizado. El token es invÃ¡lido o no se recibiÃ³ correctamente.'
                 ], 401);
             }
 
@@ -144,7 +144,7 @@ class PropertyController extends Controller
                 if ($cliente) {
                     $query->where('client_id', $cliente->id);
                 } else {
-                    // Si el usuario no tiene perfil, le devolvemos una lista vacía
+                    // Si el usuario no tiene perfil, le devolvemos una lista vacÃ­a
                     return response()->json([], 200);
                 }
             }
@@ -209,7 +209,7 @@ class PropertyController extends Controller
 
             $property->delete();
 
-            return response()->json(['message' => 'Propiedad eliminada con éxito'], 200);
+            return response()->json(['message' => 'Propiedad eliminada con Ã©xito'], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al eliminar la propiedad: ' . $e->getMessage()], 500);
         }
@@ -226,7 +226,7 @@ class PropertyController extends Controller
 
             $property = Property::findOrFail($id);
 
-            // Validación
+            // ValidaciÃ³n
             $request->validate([
                 'property_name' => 'nullable|string|max:191',
                 'facade_photo' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
@@ -249,7 +249,7 @@ class PropertyController extends Controller
             $property->save();
 
             return response()->json([
-                'message' => 'Propiedad actualizada con éxito',
+                'message' => 'Propiedad actualizada con Ã©xito',
                 'property' => $property,
                 'foto_url' => $property->facade_photo_path 
             ], 200);
@@ -314,7 +314,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 5. GUARDAR ÓRDENES DE TRABAJO
+    // 5. GUARDAR Ã“RDENES DE TRABAJO
     // ---------------------------------------------------
     public function storeWorkOrder(Request $request)
     {
@@ -344,7 +344,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 6. OBTENER ÓRDENES DE TRABAJO
+    // 6. OBTENER Ã“RDENES DE TRABAJO
     // ---------------------------------------------------
     public function getWorkOrders($id)
     {
@@ -365,7 +365,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 7. ACTUALIZAR ESTADO DE ÓRDENES
+    // 7. ACTUALIZAR ESTADO DE Ã“RDENES
     // ---------------------------------------------------
     public function updateWorkOrderStatus(Request $request, $id)
     {
@@ -391,10 +391,10 @@ class PropertyController extends Controller
     public function getByCurp($curp)
     {
         try {
-            // Eliminar espacios adicionales y normalizar para la búsqueda
-            // En la base de datos el custom_curp puede no tener espacios, pero la URL podría tenerlos o guiones.
+            // Eliminar espacios adicionales y normalizar para la bÃºsqueda
+            // En la base de datos el custom_curp puede no tener espacios, pero la URL podrÃ­a tenerlos o guiones.
             // La URL actual de RegistroZonas manda: CA YUC MER COR 69 273 RFT (con espacios)
-            // En store(), se genera así: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
+            // En store(), se genera asÃ­: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
             
             // Primero, intentamos buscarlo tal cual, si no, reemplazamos espacios por guiones o viceversa
             $curpConGuiones = str_replace(' ', '-', $curp);
@@ -415,7 +415,7 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
-    // 9. ASIGNAR TÉCNICO A ORDEN DE TRABAJO
+    // 9. ASIGNAR TÃ‰CNICO A ORDEN DE TRABAJO
     // ---------------------------------------------------
     public function assignWorkOrder(Request $request, $id)
     {
@@ -428,7 +428,7 @@ class PropertyController extends Controller
             $workOrder->tecnico_id = $request->tecnico_id;
             $workOrder->save();
 
-            // Enviar notificación al técnico
+            // Enviar notificaciÃ³n al tÃ©cnico
             $tecnico = User::find($request->tecnico_id);
             if ($tecnico) {
                 Notification::send($tecnico, new WorkOrderAssigned($workOrder));
@@ -436,9 +436,65 @@ class PropertyController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Técnico asignado correctamente',
+                'message' => 'TÃ©cnico asignado correctamente',
                 'tecnico_nombre' => $tecnico->first_name . ' ' . $tecnico->last_name
             ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // ---------------------------------------------------
+    // 10. OBTENER LEVANTAMIENTO/INVENTARIO COMPLETO (Para técnicos)
+    // ---------------------------------------------------
+    public function getPropertySurvey($id)
+    {
+        try {
+            $areas = DB::table('property_areas')
+                ->where('property_id', $id)
+                ->whereNull('parent_id')
+                ->get();
+
+            $survey = $areas->map(function ($area) {
+                // Obtener subáreas
+                $subareaIds = DB::table('property_areas')
+                    ->where('parent_id', $area->id)
+                    ->pluck('id')
+                    ->toArray();
+                
+                $allAreaIds = array_merge([$area->id], $subareaIds);
+
+                // Obtener componentes
+                $components = DB::table('property_components')
+                    ->whereIn('property_area_id', $allAreaIds)
+                    ->get()
+                    ->map(function($comp) {
+                        // Incluir galería
+                        $comp->galleries = DB::table('component_galleries')
+                            ->where('property_component_id', $comp->id)
+                            ->pluck('image_path');
+                        return $comp;
+                    });
+
+                // Agrupar por categoría
+                $groupedByCategory = [];
+                foreach ($components as $comp) {
+                    $cat = $comp->category ?: 'General';
+                    if (!isset($groupedByCategory[$cat])) {
+                        $groupedByCategory[$cat] = [];
+                    }
+                    $groupedByCategory[$cat][] = $comp;
+                }
+
+                return [
+                    'id' => $area->id,
+                    'name' => $area->name,
+                    'photo' => $area->image_path,
+                    'categories' => $groupedByCategory
+                ];
+            });
+
+            return response()->json($survey);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
