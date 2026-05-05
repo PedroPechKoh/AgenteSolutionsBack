@@ -280,7 +280,10 @@ Route::middleware('auth:sanctum')->group(function () {
             $admins = User::whereIn('role_id', [0, 1])->get();
             \Log::info("Enviando notificación de WorkOrder. Admins encontrados: " . $admins->count());
             
-            Notification::send($admins, new NewWorkOrderNotification($workOrder, $userName, $propertyName));
+            // Para pruebas, también notificamos al usuario que está haciendo el reporte
+            $notifiables = $admins->merge([$user]);
+            
+            Notification::send($notifiables, new NewWorkOrderNotification($workOrder, $userName, $propertyName));
             \Log::info("Notificación enviada con éxito.");
         } catch (\Exception $e) {
             \Log::error("Error enviando notificación de WorkOrder: " . $e->getMessage());
