@@ -2,6 +2,7 @@
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\ApplianceController;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
