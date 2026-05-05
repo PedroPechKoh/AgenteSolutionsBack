@@ -25,10 +25,10 @@ class User extends Authenticatable
         'password',
         'is_active',
         'profile_picture',
-        'cover_picture', 
+        'cover_picture',
     ];
 
-    
+
     protected $appends = ['name'];
 
     /**
@@ -58,5 +58,12 @@ class User extends Authenticatable
     public function getNameAttribute()
     {
         return trim("{$this->first_name} {$this->last_name}");
+    }
+
+    public function routeNotificationForOneSignal()
+    {
+        // Esto le dice a OneSignal: "Envíale el mensaje al dispositivo que esté
+        // logueado con este ID de usuario".
+        return ['include_external_user_ids' => [(string) $this->id]];
     }
 }
