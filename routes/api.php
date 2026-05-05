@@ -222,9 +222,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     ///Cotizaciones
     Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
+    //Finalizar Cotización
     Route::post('/cotizaciones/{id}/finalizar', [QuoteController::class, 'finalizarCotizacion']);
 
-    //Solictar servicios
+    //Solicitar servicios
     Route::post('/work-orders/cliente', function (Request $request) {
         // 1. Validar ambos archivos (ahora los llamaremos evidence_1 y evidence_2)
         $request->validate([
@@ -290,5 +291,11 @@ Route::middleware('auth:sanctum')->group(function () {
             'success' => true,
             'message' => 'Servicio solicitado con éxito'
         ], 201);
-    })->middleware('auth:sanctum');
+    });
+
+    // Nuevo: Obtener todas las órdenes de trabajo para el admin
+    Route::get('/work-orders/all', function () {
+        return \App\Models\WorkOrder::with(['property'])->orderBy('created_at', 'desc')->get();
+    });
+
 });
