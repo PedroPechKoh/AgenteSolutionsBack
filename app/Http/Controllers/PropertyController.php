@@ -446,8 +446,8 @@ class PropertyController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Técnico asignado correctamente',
-                'tecnico_nombre' => $tecnico->first_name . ' ' . $tecnico->last_name
+                'message' => 'Orden de trabajo actualizada correctamente',
+                'tecnico_nombre' => isset($tecnico) && $tecnico ? ($tecnico->first_name . ' ' . $tecnico->last_name) : null
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
