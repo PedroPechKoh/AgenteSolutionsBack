@@ -533,4 +533,52 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    public function getGlobalServiceStats()
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            $query = DB::table('work_orders');
+
+            if ($user->role_id == 3) {
+                $cliente = DB::table('clients')->where('user_id', $user->id)->first();
+                if (!$cliente) return response()->json(['sos' => 0, 'todo' => 0, 'progress' => 0, 'done' => 0]);
+                
+                $propertyIds = DB::table('properties')->where('client_id', $cliente->id)->pluck('id');
+                $query->whereIn('property_id', $propertyIds);
+            }
+
+            $stats = $query->select('status', DB::raw('count(*) as total'))
+                ->groupBy('status')
+                ->get()
+                ->pluck('total', 'status');
+
+            // SOS son los de prioridad 'Urgente' Y que no estén en estado 'Listo'
+            $sosQuery = DB::table('work_orders')->where('priority', 'Urgente')->where('status', '!=', 'Listo');
+            if ($user->role_id == 3) {
+                $cliente = DB::table('clients')->where('user_id', $user->id)->first();
+                if ($cliente) {
+                    $propertyIds = DB::table('properties')->where('client_id', $cliente->id)->pluck('id');
+                    $sosQuery->whereIn('property_id', $propertyIds);
+                } else {
+                    $sosCount = 0;
+                }
+            }
+            
+            if (!isset($sosCount)) {
+                $sosCount = $sosQuery->count();
+            }
+
+            return response()->json([
+                'sos' => $sosCount,
+                'todo' => $stats['Por Hacer'] ?? 0,
+                'progress' => $stats['En Proceso'] ?? 0,
+                'done' => $stats['Listo'] ?? 0,
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }

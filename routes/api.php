@@ -186,6 +186,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
     Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
     Route::put('/work-orders/{id}/assign', [PropertyController::class, 'assignWorkOrder']);
+    Route::get('/work-orders/global-stats', [PropertyController::class, 'getGlobalServiceStats']);
 
     // --- GESTIÓN DE ZONAS (NIVEL 3 y 4) ---
     Route::post('/property-areas', [PropertyAreaController::class, 'store']);
