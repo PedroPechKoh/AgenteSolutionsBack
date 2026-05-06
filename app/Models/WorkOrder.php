@@ -22,11 +22,13 @@ class WorkOrder extends Model
         'status',
         'priority',
         'tecnico_id',
-        'custom_checklist'
+        'custom_checklist',
+        'scheduled_at'
     ];
 
     protected $casts = [
-        'custom_checklist' => 'array'
+        'custom_checklist' => 'array',
+        'scheduled_at' => 'datetime'
     ];
 
     public function property()

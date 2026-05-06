@@ -434,13 +434,37 @@ class PropertyController extends Controller
                 $workOrder->custom_checklist = $request->custom_checklist;
             }
             
+            if ($request->has('scheduled_at')) {
+                $workOrder->scheduled_at = $request->scheduled_at;
+            }
+            
             $workOrder->save();
 
-            // Enviar notificación al técnico solo si se proporcionó un tecnico_id
+            // 1. Notificación al Técnico (Si se asignó uno)
             if ($request->has('tecnico_id')) {
                 $tecnico = User::find($request->tecnico_id);
                 if ($tecnico) {
                     Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                }
+            }
+
+            // 2. Notificación al Cliente (Si se programó la fecha)
+            if ($request->has('scheduled_at') && $workOrder->tecnico_id) {
+                try {
+                    $tecnico = User::find($workOrder->tecnico_id);
+                    $tecnicoName = $tecnico ? ($tecnico->first_name . ' ' . $tecnico->last_name) : 'Asignado';
+                    $propertyName = $workOrder->property ? ($workOrder->property->property_name ?: $workOrder->property->address) : 'Tu propiedad';
+                    
+                    // Obtener el usuario del cliente
+                    $client = \App\Models\Client::find($workOrder->property->client_id);
+                    if ($client && $client->user_id) {
+                        $userCliente = User::find($client->user_id);
+                        if ($userCliente) {
+                            Notification::send($userCliente, new \App\Notifications\WorkOrderScheduledNotification($workOrder, $tecnicoName, $propertyName));
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("Error notificando al cliente: " . $e->getMessage());
                 }
             }
 
