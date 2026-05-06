@@ -21,7 +21,12 @@ class WorkOrder extends Model
         'evidence_path_2',
         'status',
         'priority',
-        'tecnico_id'
+        'tecnico_id',
+        'custom_checklist'
+    ];
+
+    protected $casts = [
+        'custom_checklist' => 'array'
     ];
 
     public function property()

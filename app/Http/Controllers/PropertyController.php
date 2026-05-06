@@ -426,6 +426,11 @@ class PropertyController extends Controller
 
             $workOrder = WorkOrder::with('property')->findOrFail($id);
             $workOrder->tecnico_id = $request->tecnico_id;
+            
+            if ($request->has('custom_checklist')) {
+                $workOrder->custom_checklist = $request->custom_checklist;
+            }
+            
             $workOrder->save();
 
             // Enviar notificación al técnico
