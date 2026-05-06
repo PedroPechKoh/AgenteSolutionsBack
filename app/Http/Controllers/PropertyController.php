@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\WorkOrder;
 use App\Models\User;
 use App\Notifications\WorkOrderAssigned;
+use App\Notifications\WorkOrderRescheduledTechnician;
 use Illuminate\Support\Facades\Notification;
 // Importamos la API pura de Cloudinary (La Opción Nuclear)
 use Cloudinary\Cloudinary;
@@ -438,13 +439,23 @@ class PropertyController extends Controller
                 $workOrder->scheduled_at = $request->scheduled_at;
             }
             
+            $isRescheduling = $request->has('scheduled_at') && $workOrder->tecnico_id;
             $workOrder->save();
 
-            // 1. Notificación al Técnico (Si se asignó uno)
-            if ($request->has('tecnico_id')) {
-                $tecnico = User::find($request->tecnico_id);
+            // 1. Notificación al Técnico
+            if ($request->has('tecnico_id') || ($request->has('scheduled_at') && $workOrder->tecnico_id)) {
+                $tecnicoId = $request->tecnico_id ?? $workOrder->tecnico_id;
+                $tecnico = User::find($tecnicoId);
+                
                 if ($tecnico) {
-                    Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                    if ($isRescheduling && !$request->has('tecnico_id')) {
+                         // Solo se reprogramó la fecha (el técnico ya estaba asignado)
+                         $adminName = auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'El administrador';
+                         Notification::send($tecnico, new WorkOrderRescheduledTechnician($workOrder, $adminName));
+                    } else if ($request->has('tecnico_id')) {
+                         // Es una asignación nueva o cambio de técnico
+                         Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                    }
                 }
             }
 
