@@ -265,7 +265,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'evidence_path' => $path1,
             'evidence_path_2' => $path2,
             'status' => 'Por Hacer',
-            'priority' => $request->type === 'Problema' ? 'Urgente' : 'Normal',
+            'priority' => $request->priority ?: ($request->type === 'SOS' ? 'Urgente' : 'Normal'),
         ]);
 
         // 4. Notificaciones (App y Correo)
