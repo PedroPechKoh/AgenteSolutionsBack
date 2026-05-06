@@ -421,7 +421,7 @@ class PropertyController extends Controller
     {
         try {
             $request->validate([
-                'tecnico_id' => 'required|exists:users,id'
+                'tecnico_id' => 'sometimes|required|exists:users,id'
             ]);
 
             $workOrder = WorkOrder::with('property')->findOrFail($id);
