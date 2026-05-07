@@ -35,10 +35,10 @@ class QuoteController extends Controller
             else {
                 if ($request->hasFile('file')) {
                     $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
-                    
+
                     $respuestaNube = $cloudinary->uploadApi()->upload($request->file('file')->getRealPath(), [
                         'folder' => 'cotizaciones_pdf',
-                        'resource_type' => 'raw' 
+                        'resource_type' => 'raw'
                     ]);
 
                     $quote->file_path = $respuestaNube['secure_url'];
@@ -173,7 +173,7 @@ class QuoteController extends Controller
 {
     $quote = Quote::findOrFail($id);
     // Tu tabla usa 'observations'
-    $quote->observations = $request->input('observaciones'); 
+    $quote->observations = $request->input('observaciones');
     $quote->save();
 
     return response()->json(['message' => 'Observaciones guardadas']);
@@ -188,12 +188,12 @@ public function finalizarCotizacion(Request $request, $id)
             if ($request->hasFile('pdf')) {
                 // Instanciamos Cloudinary directamente con tu clave (igual que en ImageController)
                 $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
-                
+
                 // Subimos el archivo a la carpeta 'cotizaciones_pdf'
                 // NOTA CRÍTICA: Se usa resource_type => 'raw' para PDFs para evitar el error 401 de Cloudinary
                 $respuestaNube = $cloudinary->uploadApi()->upload($request->file('pdf')->getRealPath(), [
                     'folder' => 'cotizaciones_pdf',
-                    'resource_type' => 'raw' 
+                    'resource_type' => 'raw'
                 ]);
 
                 // Guardamos la URL segura
@@ -202,7 +202,7 @@ public function finalizarCotizacion(Request $request, $id)
 
             // Guardamos las observaciones
             $quote->observations = $request->input('observaciones');
-            
+
             // Opcional: Cambiar estado (ej. de 'Pendiente' a 'Aprobado' o 'En Proceso')
             // $quote->status = 'En Proceso';
 
