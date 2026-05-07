@@ -271,7 +271,26 @@ class ServiceController extends Controller
                 'technician',
                 'property.areas.components',
                 'property.areas.parent'
-            ])->findOrFail($id);
+            ])->find($id);
+
+            // Si no se encuentra en services, buscamos en work_orders
+            if (!$servicio) {
+                $workOrder = WorkOrder::with(['property.client', 'tecnico'])->find($id);
+                if ($workOrder) {
+                    return response()->json([
+                        'id' => $workOrder->id,
+                        'titulo' => $workOrder->type . ' - ' . $workOrder->zone,
+                        'estado' => $workOrder->status,
+                        'identificador_curp' => $workOrder->property ? $workOrder->property->custom_curp : 'S/N',
+                        'propietario' => ($workOrder->property && $workOrder->property->client) ? $workOrder->property->client->name : 'Sin Propietario',
+                        'direccion' => $workOrder->property ? $workOrder->property->address : 'Dirección no registrada',
+                        'tecnico' => $workOrder->tecnico ? ($workOrder->tecnico->first_name . ' ' . $workOrder->tecnico->last_name) : 'Sin Asignar',
+                        'custom_checklist' => $workOrder->custom_checklist,
+                        'tipo_registro' => 'work_order'
+                    ], 200);
+                }
+                return response()->json(['error' => 'Servicio o Orden de Trabajo no encontrada'], 404);
+            }
 
             $datos = [
                 'id' => $servicio->id,
@@ -424,6 +443,7 @@ class ServiceController extends Controller
     }
 
     public function getTecnicoServicios($idTecnico) {
+        // 1. Obtener de la tabla 'services'
         $servicios = DB::table('services')
             ->join('properties', 'services.property_id', '=', 'properties.id')
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
@@ -439,15 +459,45 @@ class ServiceController extends Controller
             ->where('services.assigned_to', $idTecnico)
             ->get();
 
+        // 2. Obtener de la tabla 'work_orders'
+        $workOrders = DB::table('work_orders')
+            ->join('properties', 'work_orders.property_id', '=', 'properties.id')
+            ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+            ->select(
+                'work_orders.*',
+                'properties.property_name', 
+                'properties.address', 
+                'properties.coordinates',
+                'properties.facade_photo_path',
+                'properties.custom_curp',
+                'clients.name as client_name'
+            )
+            ->where('work_orders.tecnico_id', $idTecnico)
+            ->get();
+
+        // 3. Unificar (Normalizando nombres de campos)
+        $unificados = $servicios->map(function($s) {
+            $s->tipo_registro = 'servicio';
+            return $s;
+        })->concat($workOrders->map(function($w) {
+            $w->tipo_registro = 'work_order';
+            // Mapear campos diferentes para que el frontend no rompa
+            $w->assigned_to = $w->tecnico_id;
+            $w->scheduled_start = $w->scheduled_at;
+            // Si no tiene título, usamos el tipo o zona
+            if (!isset($w->title) || !$w->title) {
+                $w->title = ($w->type ?? 'Trabajo') . ' - ' . ($w->zone ?? 'General');
+            }
+            return $w;
+        }));
+
         // --- LÓGICA DE DETECCIÓN DE ATRASOS ---
         $hoy = now();
-        foreach ($servicios as $s) {
+        foreach ($unificados as $s) {
             $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
             
-            // Si la fecha ya pasó y el estatus no es completado
-            if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo'])) {
+            if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo', 'completado'])) {
                 
-                // Verificar si ya notificamos este atraso hoy para evitar spam
                 $alreadyNotified = DB::table('notifications')
                     ->where('type', 'App\Notifications\TechnicianMissedVisitNotification')
                     ->where('data', 'like', '%"service_id":' . $s->id . '%')
@@ -459,19 +509,35 @@ class ServiceController extends Controller
                     $tecnico = User::find($idTecnico);
                     $tecnicoNombre = $tecnico ? $tecnico->first_name : 'Técnico';
                     
+                    // Nota: Pasamos el objeto normalizado
                     Notification::send($admins, new TechnicianMissedVisitNotification($s, $tecnicoNombre));
-                    Log::info("Notificación de visita no realizada enviada para el servicio #{$s->id}");
+                    Log::info("Notificación de visita no realizada enviada para el " . $s->tipo_registro . " #{$s->id}");
                 }
             }
         }
 
-        return response()->json($servicios);
+        return response()->json($unificados);
     }
 
     public function update(Request $request, $id)
     {
         try {
-            $servicio = Service::findOrFail($id);
+            $servicio = Service::find($id);
+            
+            if (!$servicio) {
+                $workOrder = WorkOrder::find($id);
+                if ($workOrder) {
+                    if ($request->has('status')) {
+                        $workOrder->status = $request->status;
+                    }
+                    if ($request->has('custom_checklist')) {
+                        $workOrder->custom_checklist = $request->custom_checklist;
+                    }
+                    $workOrder->save();
+                    return response()->json(['success' => true, 'message' => 'Orden de Trabajo actualizada', 'work_order' => $workOrder], 200);
+                }
+                return response()->json(['success' => false, 'message' => 'No encontrado'], 404);
+            }
 
             if ($request->has('status')) {
                 $servicio->status = $request->status;
