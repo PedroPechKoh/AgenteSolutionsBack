@@ -69,25 +69,36 @@ class QuoteController extends Controller
     {
         try {
             // Traemos las cotizaciones, ordenadas por la más reciente
-            $quotes = Quote::with(['service.property.client', 'service.technician'])
-                            ->orderBy('created_at', 'desc')
-                            ->get()
-                            ->map(function($quote) {
-                                return [
-                                    'id' => $quote->id,
-                                    'service_id' => $quote->service_id, // Útil para vincular en React
-                                    'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),
-                                    'cliente' => $quote->service->property->client->name ?? 'Sin Cliente',
-                                    'tecnico' => $quote->service->technician ? ($quote->service->technician->first_name . ' ' . $quote->service->technician->last_name) : 'Sin Técnico',
-                                    'fecha' => $quote->created_at->format('Y-m-d'),
-                                    'total' => $quote->estimated_amount ?? 0,
-                                    'estado' => $quote->status,
-                                    'tipo' => $quote->type,
-                                    'concepto' => $quote->concept,
-                                    'observaciones' => $quote->observations,
-                                    'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
-                                ];
-                            });
+            $user = auth()->user();
+
+            $quotesQuery = Quote::with(['service.property.client', 'service.technician']);
+
+            if ($user && $user->role_id === 3) {
+                $quotesQuery = $quotesQuery->whereHas('service.property.client', function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                });
+            }
+
+            $quotes = $quotesQuery->orderBy('created_at', 'desc')
+                                  ->get()
+                                  ->map(function($quote) {
+                                      return [
+                                          'id' => $quote->id,
+                                          'service_id' => $quote->service_id, // Útil para vincular en React
+                                          'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),
+                                          'cliente' => $quote->service->property->client->name ?? 'Sin Cliente',
+                                          'cliente_id' => $quote->service->property->client->id ?? null,
+                                          'cliente_user_id' => $quote->service->property->client->user_id ?? null,
+                                          'tecnico' => $quote->service->technician ? ($quote->service->technician->first_name . ' ' . $quote->service->technician->last_name) : 'Sin Técnico',
+                                          'fecha' => $quote->created_at->format('Y-m-d'),
+                                          'total' => $quote->estimated_amount ?? 0,
+                                          'estado' => $quote->status,
+                                          'tipo' => $quote->type,
+                                          'concepto' => $quote->concept,
+                                          'observaciones' => $quote->observations,
+                                          'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
+                                      ];
+                                  });
 
             return response()->json($quotes, 200);
         } catch (\Exception $e) {
