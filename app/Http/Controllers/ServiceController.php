@@ -14,6 +14,7 @@ use App\Notifications\NewServiceRequested;
 use App\Models\PropertyArea;
 use Cloudinary\Cloudinary;
 use Illuminate\Support\Facades\Log;
+use App\Notifications\TechnicianMissedVisitNotification;
 
 class ServiceController extends Controller
 {
@@ -437,6 +438,32 @@ class ServiceController extends Controller
             )
             ->where('services.assigned_to', $idTecnico)
             ->get();
+
+        // --- LÓGICA DE DETECCIÓN DE ATRASOS ---
+        $hoy = now();
+        foreach ($servicios as $s) {
+            $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
+            
+            // Si la fecha ya pasó y el estatus no es completado
+            if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo'])) {
+                
+                // Verificar si ya notificamos este atraso hoy para evitar spam
+                $alreadyNotified = DB::table('notifications')
+                    ->where('type', 'App\Notifications\TechnicianMissedVisitNotification')
+                    ->where('data', 'like', '%"service_id":' . $s->id . '%')
+                    ->where('created_at', '>=', now()->startOfDay())
+                    ->exists();
+
+                if (!$alreadyNotified) {
+                    $admins = User::whereIn('role_id', [0, 1])->get();
+                    $tecnico = User::find($idTecnico);
+                    $tecnicoNombre = $tecnico ? $tecnico->first_name : 'Técnico';
+                    
+                    Notification::send($admins, new TechnicianMissedVisitNotification($s, $tecnicoNombre));
+                    Log::info("Notificación de visita no realizada enviada para el servicio #{$s->id}");
+                }
+            }
+        }
 
         return response()->json($servicios);
     }
