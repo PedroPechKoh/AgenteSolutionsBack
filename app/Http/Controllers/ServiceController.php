@@ -311,6 +311,7 @@ class ServiceController extends Controller
                     'prioridad' => $model->priority,
                     'identificador_curp' => $property ? $property->custom_curp : 'S/N',
                     'propietario' => $client ? $client->name : 'Sin Propietario',
+                    'telefono_cliente' => $client ? $client->phone : null,
                     'direccion' => $property ? $property->address : 'Dirección no registrada',
                     'coordenadas' => $property ? $property->coordinates : null,
                     'tipoPropiedad' => $property ? strtoupper($property->type) : 'N/A',
@@ -333,6 +334,7 @@ class ServiceController extends Controller
                     'prioridad' => $model->priority,
                     'identificador_curp' => $property ? $property->custom_curp : 'S/N',
                     'propietario' => $client ? $client->name : 'Sin Propietario',
+                    'telefono_cliente' => $client ? $client->phone : null,
                     'direccion' => $property ? $property->address : 'Dirección no registrada',
                     'coordenadas' => $property ? $property->coordinates : null,
                     'tipoPropiedad' => $property ? strtoupper($property->type) : 'N/A',
@@ -446,7 +448,8 @@ class ServiceController extends Controller
                     'properties.coordinates',
                     'properties.facade_photo_path',
                     'properties.custom_curp',
-                    'clients.name as client_name'
+                    'clients.name as client_name',
+                    'clients.phone as client_phone'
                 )
                 ->where('services.assigned_to', $idTecnico)
                 ->get();
@@ -462,7 +465,8 @@ class ServiceController extends Controller
                     'properties.coordinates',
                     'properties.facade_photo_path',
                     'properties.custom_curp',
-                    'clients.name as client_name'
+                    'clients.name as client_name',
+                    'clients.phone as client_phone'
                 )
                 ->where('work_orders.tecnico_id', $idTecnico)
                 ->get();
