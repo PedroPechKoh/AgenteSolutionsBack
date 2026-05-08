@@ -135,9 +135,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/map', function () {
         $propiedades = \Illuminate\Support\Facades\DB::table('properties')
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+            ->leftJoin('users', 'clients.user_id', '=', 'users.id')
             ->whereNotNull('properties.coordinates')
             ->where('properties.coordinates', '!=', '')
-            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture', 'clients.id as client_id', 'clients.email')
+            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.id as client_id', 'clients.email', \Illuminate\Support\Facades\DB::raw('COALESCE(users.profile_picture, clients.profile_picture) as profile_picture'))
             ->get();
 
         $marcadoresBrutos = $propiedades->map(function ($prop) {
