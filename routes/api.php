@@ -137,7 +137,7 @@ Route::middleware('auth:sanctum')->group(function () {
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
             ->whereNotNull('properties.coordinates')
             ->where('properties.coordinates', '!=', '')
-            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture')
+            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture', 'clients.id as client_id')
             ->get();
 
         $marcadoresBrutos = $propiedades->map(function ($prop) {
@@ -149,7 +149,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 'lng' => isset($partes[1]) ? (float) trim($partes[1]) : null,
                 'owner_name' => $prop->name,
                 'phone' => $prop->phone,
-                'picture' => $prop->profile_picture
+                'picture' => $prop->profile_picture,
+                'client_id' => $prop->client_id
             ];
         });
 
