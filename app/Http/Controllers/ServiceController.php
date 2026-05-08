@@ -585,7 +585,7 @@ class ServiceController extends Controller
             // Agrupar componentes por su categoría para formar las 'subSecciones' que espera React
             $subSecciones = $components->groupBy('category')->map(function ($items, $catName) {
                 return [
-                    'titulo' => $catName ?: 'General',
+                    'nombre' => $catName ?: 'General',
                     'inventario' => $items->map(function($item) {
                         // Mapear campos para que el frontend (React) los detecte correctamente
                         return [

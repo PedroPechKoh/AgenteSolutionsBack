@@ -544,18 +544,26 @@ class PropertyController extends Controller
                 // Agrupar por categoría
                 $groupedByCategory = [];
                 foreach ($components as $comp) {
-                    $cat = $comp->category ?: 'General';
+                    $cat = $comp['categoria'] ?: 'General';
                     if (!isset($groupedByCategory[$cat])) {
                         $groupedByCategory[$cat] = [];
                     }
                     $groupedByCategory[$cat][] = $comp;
                 }
 
+                $formattedCategories = [];
+                foreach($groupedByCategory as $name => $items) {
+                    $formattedCategories[] = [
+                        'nombre' => $name,
+                        'inventario' => $items
+                    ];
+                }
+
                 return [
                     'id' => $area->id,
-                    'name' => $area->name,
-                    'photo' => $area->image_path,
-                    'categories' => $groupedByCategory
+                    'nombre' => $area->name,
+                    'foto' => $area->image_path,
+                    'categorias' => $formattedCategories
                 ];
             });
 
