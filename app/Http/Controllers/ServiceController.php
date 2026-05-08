@@ -300,6 +300,8 @@ class ServiceController extends Controller
             $property = $model->property;
             $client = $property ? $property->client : null;
 
+            $secciones = $this->getFormattedSecciones($model->property_id);
+
             if ($isWorkOrder) {
                 return response()->json([
                     'id' => $model->id,
@@ -319,7 +321,8 @@ class ServiceController extends Controller
                     'descripcion' => $model->description,
                     'custom_checklist' => $model->custom_checklist,
                     'property_id' => $model->property_id,
-                    'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2]))
+                    'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2])),
+                    'secciones' => $secciones
                 ], 200);
             } else {
                 return response()->json([
@@ -339,7 +342,8 @@ class ServiceController extends Controller
                     'fecha_programada' => $model->scheduled_start,
                     'descripcion' => $model->description,
                     'property_id' => $model->property_id,
-                    'evidencias' => []
+                    'evidencias' => [],
+                    'secciones' => $secciones
                 ], 200);
             }
 
@@ -555,4 +559,51 @@ class ServiceController extends Controller
             ], 500);
         }
     }
+    private function getFormattedSecciones($propertyId)
+    {
+        if (!$propertyId) return [];
+
+        // Obtener todas las áreas de la propiedad
+        $areas = DB::table('property_areas')
+            ->where('property_id', $propertyId)
+            ->get();
+
+        if ($areas->isEmpty()) return [];
+
+        return $areas->map(function ($area) {
+            // Buscar si tiene un parent para la agrupación en el frontend
+            $parent = null;
+            if ($area->parent_id) {
+                $parent = DB::table('property_areas')->where('id', $area->parent_id)->first();
+            }
+
+            // Obtener los componentes (inventario) de esta área específica
+            $components = DB::table('property_components')
+                ->where('property_area_id', $area->id)
+                ->get();
+
+            // Agrupar componentes por su categoría para formar las 'subSecciones' que espera React
+            $subSecciones = $components->groupBy('category')->map(function ($items, $catName) {
+                return [
+                    'titulo' => $catName ?: 'General',
+                    'inventario' => $items->map(function($item) {
+                        // Incluir la galería de imágenes de cada componente
+                        $item->galleries = DB::table('component_galleries')
+                            ->where('property_component_id', $item->id)
+                            ->pluck('image_path');
+                        return $item;
+                    })->values()
+                ];
+            })->values();
+
+            return [
+                'id' => $area->id,
+                'titulo' => $area->name,
+                'foto' => $area->image_path,
+                'subSecciones' => $subSecciones,
+                'parent' => $parent
+            ];
+        });
+    }
 }
+
