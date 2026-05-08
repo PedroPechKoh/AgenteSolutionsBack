@@ -15,6 +15,7 @@ use App\Models\PropertyArea;
 use Cloudinary\Cloudinary;
 use Illuminate\Support\Facades\Log;
 use App\Notifications\TechnicianMissedVisitNotification;
+use App\Models\WorkOrder;
 
 class ServiceController extends Controller
 {
@@ -458,82 +459,86 @@ class ServiceController extends Controller
     }
 
     public function getTecnicoServicios($idTecnico) {
-        // 1. Obtener de la tabla 'services'
-        $servicios = DB::table('services')
-            ->join('properties', 'services.property_id', '=', 'properties.id')
-            ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
-            ->select(
-                'services.*', 
-                'properties.property_name', 
-                'properties.address', 
-                'properties.coordinates',
-                'properties.facade_photo_path',
-                'properties.custom_curp',
-                'clients.name as client_name'
-            )
-            ->where('services.assigned_to', $idTecnico)
-            ->get();
+        try {
+            // 1. Obtener de la tabla 'services'
+            $servicios = DB::table('services')
+                ->join('properties', 'services.property_id', '=', 'properties.id')
+                ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                ->select(
+                    'services.*', 
+                    'properties.property_name', 
+                    'properties.address', 
+                    'properties.coordinates',
+                    'properties.facade_photo_path',
+                    'properties.custom_curp',
+                    'clients.name as client_name'
+                )
+                ->where('services.assigned_to', $idTecnico)
+                ->get();
 
-        // 2. Obtener de la tabla 'work_orders'
-        $workOrders = DB::table('work_orders')
-            ->join('properties', 'work_orders.property_id', '=', 'properties.id')
-            ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
-            ->select(
-                'work_orders.*',
-                'properties.property_name', 
-                'properties.address', 
-                'properties.coordinates',
-                'properties.facade_photo_path',
-                'properties.custom_curp',
-                'clients.name as client_name'
-            )
-            ->where('work_orders.tecnico_id', $idTecnico)
-            ->get();
+            // 2. Obtener de la tabla 'work_orders'
+            $workOrders = DB::table('work_orders')
+                ->join('properties', 'work_orders.property_id', '=', 'properties.id')
+                ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                ->select(
+                    'work_orders.*',
+                    'properties.property_name', 
+                    'properties.address', 
+                    'properties.coordinates',
+                    'properties.facade_photo_path',
+                    'properties.custom_curp',
+                    'clients.name as client_name'
+                )
+                ->where('work_orders.tecnico_id', $idTecnico)
+                ->get();
 
-        // 3. Unificar (Normalizando nombres de campos)
-        $unificados = $servicios->map(function($s) {
-            $s->composite_id = "servicio-{$s->id}";
-            $s->tipo_registro = 'servicio';
-            return $s;
-        })->concat($workOrders->map(function($w) {
-            $w->composite_id = "work_order-{$w->id}";
-            $w->tipo_registro = 'work_order';
-            // Mapear campos diferentes para que el frontend no rompa
-            $w->assigned_to = $w->tecnico_id;
-            $w->scheduled_start = $w->scheduled_at;
-            // Si no tiene título, usamos el tipo o zona
-            if (!isset($w->title) || !$w->title) {
-                $w->title = ($w->type ?? 'Trabajo') . ' - ' . ($w->zone ?? 'General');
-            }
-            return $w;
-        }));
+            // 3. Unificar (Normalizando nombres de campos)
+            $unificados = $servicios->map(function($s) {
+                $s->composite_id = "servicio-{$s->id}";
+                $s->tipo_registro = 'servicio';
+                return $s;
+            })->concat($workOrders->map(function($w) {
+                $w->composite_id = "work_order-{$w->id}";
+                $w->tipo_registro = 'work_order';
+                // Mapear campos diferentes para que el frontend no rompa
+                $w->assigned_to = $w->tecnico_id;
+                $w->scheduled_start = $w->scheduled_at;
+                // Si no tiene título, usamos el tipo o zona
+                if (!isset($w->title) || !$w->title) {
+                    $w->title = ($w->type ?? 'Trabajo') . ' - ' . ($w->zone ?? 'General');
+                }
+                return $w;
+            }));
 
-        // --- LÓGICA DE DETECCIÓN DE ATRASOS ---
-        $hoy = now();
-        foreach ($unificados as $s) {
-            $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
-            
-            if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo', 'completado'])) {
+            // --- LÓGICA DE DETECCIÓN DE ATRASOS ---
+            $hoy = now();
+            foreach ($unificados as $s) {
+                $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
                 
-                $alreadyNotified = DB::table('notifications')
-                    ->where('type', 'App\Notifications\TechnicianMissedVisitNotification')
-                    ->where('data', 'like', '%"service_id":' . $s->id . '%')
-                    ->where('created_at', '>=', now()->startOfDay())
-                    ->exists();
-
-                if (!$alreadyNotified) {
-                    $admins = User::whereIn('role_id', [0, 1])->get();
-                    $tecnico = User::find($idTecnico);
-                    $tecnicoNombre = $tecnico ? $tecnico->first_name : 'Técnico';
+                if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo', 'completado'])) {
                     
-                    // Nota: Pasamos el objeto normalizado
-                    Notification::send($admins, new TechnicianMissedVisitNotification($s, $tecnicoNombre));
-                    Log::info("Notificación de visita no realizada enviada para el " . $s->tipo_registro . " #{$s->id}");
+                    $alreadyNotified = DB::table('notifications')
+                        ->where('type', 'App\Notifications\TechnicianMissedVisitNotification')
+                        ->where('data', 'like', '%"service_id":' . $s->id . '%')
+                        ->where('created_at', '>=', now()->startOfDay())
+                        ->exists();
+
+                    if (!$alreadyNotified) {
+                        $admins = User::whereIn('role_id', [0, 1])->get();
+                        $tecnico = User::find($idTecnico);
+                        $tecnicoNombre = $tecnico ? $tecnico->first_name : 'Técnico';
+                        
+                        Notification::send($admins, new TechnicianMissedVisitNotification($s, $tecnicoNombre));
+                        Log::info("Notificación de visita no realizada enviada para el " . $s->tipo_registro . " #{$s->id}");
+                    }
                 }
             }
-        }
 
-        return response()->json($unificados);
+            return response()->json($unificados);
+        } catch (\Exception $e) {
+            Log::error("Error en getTecnicoServicios: " . $e->getMessage());
+            return response()->json(['error' => 'Error interno del servidor', 'details' => $e->getMessage()], 500);
+        }
     }
 
     public function update(Request $request, $id)
