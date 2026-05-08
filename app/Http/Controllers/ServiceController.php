@@ -347,36 +347,7 @@ class ServiceController extends Controller
             return response()->json(['error' => 'Error al cargar el detalle: ' . $e->getMessage()], 500);
         }
     }
-                            return [
-                                'nombre' => $categoriaNombre,
-                                'nota' => 'Generado desde BD',
-                                'inventario' => $items->map(function ($item) {
-                                    return [
-                                        'id' => $item->id,
-                                        'nombre' => $item->sub_category ?? 'S/N',
-                                        'categoria' => $item->sub_category ?? 'S/N', 
-                                        'marca' => $item->brand,
-                                        'modelo' => $item->model_or_color,
-                                        'cantidad' => (int) $item->quantity,
-                                        'estado' => $item->status,
-                                        'observaciones' => $item->observations,
-                                        'foto' => $item->image_path ? (str_starts_with($item->image_path, 'http') ? $item->image_path : asset('storage/' . $item->image_path)) : null,
-                                        'foto_secundaria' => $item->image_path_secondary ? (str_starts_with($item->image_path_secondary, 'http') ? $item->image_path_secondary : asset('storage/' . $item->image_path_secondary)) : null,
-                                        'galleries' => DB::table('component_galleries')->where('property_component_id', $item->id)->get()
-                                    ];
-                                })->values()
-                            ];
-                        })->values()
-                    ];
-                })->values() : []
-            ];
 
-            return response()->json($datos, 200);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Servicio no encontrado: ' . $e->getMessage()], 404);
-        }
-    }
 
     // ... (rest of the methods confirmedCitaCliente, solicitarReprogramacion, getTecnicoServicios, update remain unchanged)
     
