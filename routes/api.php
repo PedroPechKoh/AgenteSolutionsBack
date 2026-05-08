@@ -137,11 +137,13 @@ Route::middleware('auth:sanctum')->group(function () {
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
             ->whereNotNull('properties.coordinates')
             ->where('properties.coordinates', '!=', '')
-            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture', 'clients.id as client_id')
+            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.profile_picture', 'clients.id as client_id', 'clients.email')
             ->get();
 
         $marcadoresBrutos = $propiedades->map(function ($prop) {
             $partes = explode(',', $prop->coordinates);
+            $fotoUrl = $prop->profile_picture ? (str_starts_with($prop->profile_picture, 'http') ? $prop->profile_picture : asset('storage/' . $prop->profile_picture)) : null;
+            
             return [
                 'id' => $prop->prop_id,
                 'address' => $prop->address,
@@ -149,8 +151,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 'lng' => isset($partes[1]) ? (float) trim($partes[1]) : null,
                 'owner_name' => $prop->name,
                 'phone' => $prop->phone,
-                'picture' => $prop->profile_picture,
-                'client_id' => $prop->client_id
+                'picture' => $fotoUrl,
+                'client_id' => $prop->client_id,
+                'email' => $prop->email
             ];
         });
 
