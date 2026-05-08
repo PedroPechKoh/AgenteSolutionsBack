@@ -284,7 +284,13 @@ class ServiceController extends Controller
                         'identificador_curp' => $workOrder->property ? $workOrder->property->custom_curp : 'S/N',
                         'propietario' => ($workOrder->property && $workOrder->property->client) ? $workOrder->property->client->name : 'Sin Propietario',
                         'direccion' => $workOrder->property ? $workOrder->property->address : 'Dirección no registrada',
+                        'coordenadas' => $workOrder->property ? $workOrder->property->coordinates : null,
+                        'tipoPropiedad' => $workOrder->property ? strtoupper($workOrder->property->type) : 'N/A',
+                        'propiedad_nombre' => $workOrder->property ? $workOrder->property->property_name : 'Propiedad Sin Nombre',
+                        'foto_fachada' => $workOrder->property ? $workOrder->property->facade_photo_path : null,
                         'tecnico' => $workOrder->tecnico ? ($workOrder->tecnico->first_name . ' ' . $workOrder->tecnico->last_name) : 'Sin Asignar',
+                        'fecha_programada' => $workOrder->scheduled_at ? date('d M, Y', strtotime($workOrder->scheduled_at)) : 'Pendiente de programar',
+                        'descripcion' => $workOrder->description,
                         'custom_checklist' => $workOrder->custom_checklist,
                         'tipo_registro' => 'work_order'
                     ], 200);
@@ -306,6 +312,7 @@ class ServiceController extends Controller
 
                 'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
                 'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
+                'descripcion' => $servicio->description,
 
                 'secciones' => $servicio->property ? $servicio->property->areas->filter(function ($area) {
                     return $area->parent_id !== null || $area->components->count() > 0;
