@@ -587,11 +587,34 @@ class ServiceController extends Controller
                 return [
                     'titulo' => $catName ?: 'General',
                     'inventario' => $items->map(function($item) {
-                        // Incluir la galería de imágenes de cada componente
-                        $item->galleries = DB::table('component_galleries')
-                            ->where('property_component_id', $item->id)
-                            ->pluck('image_path');
-                        return $item;
+                        // Mapear campos para que el frontend (React) los detecte correctamente
+                        return [
+                            'id' => $item->id,
+                            'nombre' => $item->sub_category,
+                            'categoria' => $item->category,
+                            'marca' => $item->brand,
+                            'modelo' => $item->model_or_color,
+                            'estado' => $item->status,
+                            'cantidad' => $item->quantity,
+                            'observaciones' => $item->observations,
+                            'foto' => $item->image_path,
+                            'foto_secundaria' => $item->image_path_secondary,
+                            'serial_number' => $item->serial_number,
+                            'property_area_id' => $item->property_area_id,
+                            // Alias para compatibilidad con el modal de edición que usa nombres de BD
+                            'sub_category' => $item->sub_category,
+                            'brand' => $item->brand,
+                            'model_or_color' => $item->model_or_color,
+                            'status' => $item->status,
+                            'quantity' => $item->quantity,
+                            'observations' => $item->observations,
+                            'image_path' => $item->image_path,
+                            'image_path_secondary' => $item->image_path_secondary,
+                            // Incluir la galería de imágenes de cada componente
+                            'galleries' => DB::table('component_galleries')
+                                ->where('property_component_id', $item->id)
+                                ->get()
+                        ];
                     })->values()
                 ];
             })->values();

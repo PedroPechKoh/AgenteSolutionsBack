@@ -514,11 +514,31 @@ class PropertyController extends Controller
                     ->whereIn('property_area_id', $allAreaIds)
                     ->get()
                     ->map(function($comp) {
-                        // Incluir galería
-                        $comp->galleries = DB::table('component_galleries')
-                            ->where('property_component_id', $comp->id)
-                            ->pluck('image_path');
-                        return $comp;
+                        return [
+                            'id' => $comp->id,
+                            'nombre' => $comp->sub_category,
+                            'categoria' => $comp->category,
+                            'marca' => $comp->brand,
+                            'modelo' => $comp->model_or_color,
+                            'estado' => $comp->status,
+                            'cantidad' => $comp->quantity,
+                            'observaciones' => $comp->observations,
+                            'foto' => $comp->image_path,
+                            'foto_secundaria' => $comp->image_path_secondary,
+                            'serial_number' => $comp->serial_number,
+                            'property_area_id' => $comp->property_area_id,
+                            'sub_category' => $comp->sub_category,
+                            'brand' => $comp->brand,
+                            'model_or_color' => $comp->model_or_color,
+                            'status' => $comp->status,
+                            'quantity' => $comp->quantity,
+                            'observations' => $comp->observations,
+                            'image_path' => $comp->image_path,
+                            'image_path_secondary' => $comp->image_path_secondary,
+                            'galleries' => DB::table('component_galleries')
+                                ->where('property_component_id', $comp->id)
+                                ->get()
+                        ];
                     });
 
                 // Agrupar por categoría
