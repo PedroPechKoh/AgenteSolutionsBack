@@ -263,81 +263,89 @@ class ServiceController extends Controller
         }
     }
 
-    public function show($id)
+    public function show($identifier)
     {
         try {
-            $servicio = Service::with([
-                'property.client',
-                'technician',
-                'property.areas.components',
-                'property.areas.parent'
-            ])->find($id);
+            $type = null;
+            $realId = $identifier;
 
-            // Si no se encuentra en services, buscamos en work_orders
-            if (!$servicio) {
-                $workOrder = WorkOrder::with(['property.client', 'tecnico'])->find($id);
-                if ($workOrder) {
-                    return response()->json([
-                        'id' => $workOrder->id,
-                        'titulo' => $workOrder->type . ' - ' . $workOrder->zone,
-                        'estado' => $workOrder->status,
-                        'identificador_curp' => $workOrder->property ? $workOrder->property->custom_curp : 'S/N',
-                        'propietario' => ($workOrder->property && $workOrder->property->client) ? $workOrder->property->client->name : 'Sin Propietario',
-                        'direccion' => $workOrder->property ? $workOrder->property->address : 'Dirección no registrada',
-                        'coordenadas' => $workOrder->property ? $workOrder->property->coordinates : null,
-                        'tipoPropiedad' => $workOrder->property ? strtoupper($workOrder->property->type) : 'N/A',
-                        'propiedad_nombre' => $workOrder->property ? $workOrder->property->property_name : 'Propiedad Sin Nombre',
-                        'foto_fachada' => $workOrder->property ? $workOrder->property->facade_photo_path : null,
-                        'tecnico' => $workOrder->tecnico ? ($workOrder->tecnico->first_name . ' ' . $workOrder->tecnico->last_name) : 'Sin Asignar',
-                        'fecha_programada' => $workOrder->scheduled_at ? date('d M, Y', strtotime($workOrder->scheduled_at)) : 'Pendiente de programar',
-                        'descripcion' => $workOrder->description,
-                        'custom_checklist' => $workOrder->custom_checklist,
-                        'tipo_registro' => 'work_order'
-                    ], 200);
-                }
-                return response()->json(['error' => 'Servicio o Orden de Trabajo no encontrada'], 404);
+            if (str_contains($identifier, '-')) {
+                $parts = explode('-', $identifier);
+                $type = $parts[0];
+                $realId = $parts[1];
             }
 
-            $datos = [
-                'id' => $servicio->id,
-                'titulo' => $servicio->title,
-                'estado' => $servicio->status,
-                'identificador_curp' => $servicio->property ? $servicio->property->custom_curp : 'S/N',
-                'propietario' => ($servicio->property && $servicio->property->client) ? $servicio->property->client->name : 'Sin Propietario',
-                'direccion' => $servicio->property ? $servicio->property->address : 'Dirección no registrada',
-                'coordenadas' => $servicio->property ? $servicio->property->coordinates : null,
-                'tipoPropiedad' => $servicio->property ? strtoupper($servicio->property->type) : 'N/A',
-                'propiedad_nombre' => $servicio->property ? $servicio->property->property_name : 'Propiedad Sin Nombre',
-                'foto_fachada' => $servicio->property ? $servicio->property->facade_photo_path : null,
+            $model = null;
+            $isWorkOrder = false;
 
-                'tecnico' => $servicio->technician ? ($servicio->technician->first_name . ' ' . $servicio->technician->last_name) : 'Sin Asignar',
-                'fecha_programada' => $servicio->scheduled_start ? date('d M, Y', strtotime($servicio->scheduled_start)) : 'Pendiente de programar',
-                'descripcion' => $servicio->description,
+            if ($type === 'work_order') {
+                $model = WorkOrder::with(['property.client', 'tecnico'])->find($realId);
+                $isWorkOrder = true;
+            } elseif ($type === 'servicio') {
+                $model = Service::with(['property.client', 'technician'])->find($realId);
+            } else {
+                // Fallback: Buscar en servicios primero, luego en órdenes
+                $model = Service::with(['property.client', 'technician'])->find($realId);
+                if (!$model) {
+                    $model = WorkOrder::with(['property.client', 'tecnico'])->find($realId);
+                    $isWorkOrder = true;
+                }
+            }
 
-                'secciones' => $servicio->property ? $servicio->property->areas->filter(function ($area) {
-                    return $area->parent_id !== null || $area->components->count() > 0;
-                })->map(function ($area) {
-                    $categoriasRegistradas = DB::table('property_maintenance_categories')
-                        ->where('property_area_id', $area->id)
-                        ->pluck('name')
-                        ->unique()
-                        ->toArray();
+            if (!$model) {
+                return response()->json(['error' => 'Registro no encontrado'], 404);
+            }
 
-                    $componentesPorCategoria = $area->components->groupBy('category');
-                    $nombresCategorias = array_unique(array_merge($categoriasRegistradas, $componentesPorCategoria->keys()->toArray()));
+            $property = $model->property;
+            $client = $property ? $property->client : null;
 
-                    return [
-                        'id' => $area->id,
-                        'titulo' => $area->name,
-                        'zona_nombre' => $area->parent ? $area->parent->name : 'ÁREAS Y HABITACIONES',
-                        'parent' => $area->parent ? [
-                            'id' => $area->parent->id,
-                            'name' => $area->parent->name
-                        ] : null,
-                        'descripcion' => $area->description,
-                        'foto' => $area->image_path ? (str_starts_with($area->image_path, 'http') ? $area->image_path : asset('storage/' . $area->image_path)) : null,
-                        'subSecciones' => collect($nombresCategorias)->map(function ($categoriaNombre) use ($componentesPorCategoria) {
-                            $items = $componentesPorCategoria->get($categoriaNombre, collect());
+            if ($isWorkOrder) {
+                return response()->json([
+                    'id' => $model->id,
+                    'tipo_registro' => 'work_order',
+                    'titulo' => ($model->type ?? 'Trabajo') . ' - ' . ($model->zone ?? 'General'),
+                    'estado' => $model->status,
+                    'prioridad' => $model->priority,
+                    'identificador_curp' => $property ? $property->custom_curp : 'S/N',
+                    'propietario' => $client ? $client->name : 'Sin Propietario',
+                    'direccion' => $property ? $property->address : 'Dirección no registrada',
+                    'coordenadas' => $property ? $property->coordinates : null,
+                    'tipoPropiedad' => $property ? strtoupper($property->type) : 'N/A',
+                    'propiedad_nombre' => $property ? $property->property_name : 'Propiedad Sin Nombre',
+                    'foto_fachada' => $property ? $property->facade_photo_path : null,
+                    'tecnico' => $model->tecnico ? ($model->tecnico->first_name . ' ' . $model->tecnico->last_name) : 'Sin Asignar',
+                    'fecha_programada' => $model->scheduled_at ? $model->scheduled_at->format('Y-m-d H:i:s') : null,
+                    'descripcion' => $model->description,
+                    'custom_checklist' => $model->custom_checklist,
+                    'property_id' => $model->property_id,
+                    'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2]))
+                ], 200);
+            } else {
+                return response()->json([
+                    'id' => $model->id,
+                    'tipo_registro' => 'servicio',
+                    'titulo' => $model->title,
+                    'estado' => $model->status,
+                    'prioridad' => $model->priority,
+                    'identificador_curp' => $property ? $property->custom_curp : 'S/N',
+                    'propietario' => $client ? $client->name : 'Sin Propietario',
+                    'direccion' => $property ? $property->address : 'Dirección no registrada',
+                    'coordenadas' => $property ? $property->coordinates : null,
+                    'tipoPropiedad' => $property ? strtoupper($property->type) : 'N/A',
+                    'propiedad_nombre' => $property ? $property->property_name : 'Propiedad Sin Nombre',
+                    'foto_fachada' => $property ? $property->facade_photo_path : null,
+                    'tecnico' => $model->technician ? ($model->technician->first_name . ' ' . $model->technician->last_name) : 'Sin Asignar',
+                    'fecha_programada' => $model->scheduled_start,
+                    'descripcion' => $model->description,
+                    'property_id' => $model->property_id,
+                    'evidencias' => []
+                ], 200);
+            }
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al cargar el detalle: ' . $e->getMessage()], 500);
+        }
+    }
                             return [
                                 'nombre' => $categoriaNombre,
                                 'nota' => 'Generado desde BD',
@@ -484,9 +492,11 @@ class ServiceController extends Controller
 
         // 3. Unificar (Normalizando nombres de campos)
         $unificados = $servicios->map(function($s) {
+            $s->composite_id = "servicio-{$s->id}";
             $s->tipo_registro = 'servicio';
             return $s;
         })->concat($workOrders->map(function($w) {
+            $w->composite_id = "work_order-{$w->id}";
             $w->tipo_registro = 'work_order';
             // Mapear campos diferentes para que el frontend no rompa
             $w->assigned_to = $w->tecnico_id;
