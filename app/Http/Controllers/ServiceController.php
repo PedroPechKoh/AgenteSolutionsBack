@@ -510,7 +510,7 @@ class ServiceController extends Controller
                 return $w;
             }));
 
-            // --- LÓGICA DE DETECCIÓN DE ATRASOS ---
+            /* --- LÓGICA DE DETECCIÓN DE ATRASOS (TEMPORALMENTE DESHABILITADA PARA DEBUG) ---
             $hoy = now();
             foreach ($unificados as $s) {
                 $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
@@ -533,6 +533,7 @@ class ServiceController extends Controller
                     }
                 }
             }
+            */
 
             return response()->json($unificados);
         } catch (\Exception $e) {
