@@ -551,19 +551,11 @@ class PropertyController extends Controller
                     $groupedByCategory[$cat][] = $comp;
                 }
 
-                $formattedCategories = [];
-                foreach($groupedByCategory as $name => $items) {
-                    $formattedCategories[] = [
-                        'nombre' => $name,
-                        'inventario' => $items
-                    ];
-                }
-
                 return [
                     'id' => $area->id,
-                    'nombre' => $area->name,
-                    'foto' => $area->image_path,
-                    'categorias' => $formattedCategories
+                    'name' => $area->name,
+                    'photo' => $area->image_path,
+                    'categories' => $groupedByCategory
                 ];
             });
 
