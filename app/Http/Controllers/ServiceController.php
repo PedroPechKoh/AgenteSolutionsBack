@@ -25,7 +25,7 @@ class ServiceController extends Controller
     public function getReports($id)
     {
         try {
-            $reports = WorkReport::with('technician:id,first_name,last_name,name,profile_picture')
+            $reports = WorkReport::with('technician:id,first_name,last_name,profile_picture')
                 ->where('service_id', $id)
                 ->orderBy('created_at', 'desc')
                 ->get();
