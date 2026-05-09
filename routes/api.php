@@ -176,6 +176,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/servicios/{id}', [ServiceController::class, 'update']);
     Route::put('/servicios/{id}/asignar', [ServiceController::class, 'assignTechnician']);
     Route::put('/servicios/{id}/asignar-trabajo', [ServiceController::class, 'assignWorkOrder']); // NUEVO
+    
+    // Rutas para Reportes de Trabajo
+    Route::get('/servicios/{id}/reportes', [ServiceController::class, 'getReports']);
+    Route::post('/servicios/{id}/reportes', [ServiceController::class, 'storeReport']);
     Route::post('/services/assign', [ServiceController::class, 'store']);
 
     // --- CHECKLIST TEMPLATES ---

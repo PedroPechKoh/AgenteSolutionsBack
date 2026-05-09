@@ -16,10 +16,55 @@ use Cloudinary\Cloudinary;
 use Illuminate\Support\Facades\Log;
 use App\Notifications\TechnicianMissedVisitNotification;
 use App\Models\WorkOrder;
+use App\Models\WorkReport;
 
 class ServiceController extends Controller
 {
     // ... (store, index, assignTechnician, assignWorkOrder methods remain unchanged)
+
+    public function getReports($id)
+    {
+        try {
+            $reports = WorkReport::with('technician:id,first_name,last_name,name,profile_picture')
+                ->where('service_id', $id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+            return response()->json($reports, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener reportes: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function storeReport(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'description' => 'required|string',
+                'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:10240',
+            ]);
+
+            $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                'folder' => 'agente_reportes'
+            ]);
+
+            $report = WorkReport::create([
+                'service_id' => $id,
+                'technician_id' => $request->user()->id,
+                'image_url' => $respuestaNube['secure_url'],
+                'description' => $request->description,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reporte guardado con éxito',
+                'report' => $report
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error("Error guardando reporte: " . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Error al guardar reporte: ' . $e->getMessage()], 500);
+        }
+    }
 
     public function store(Request $request)
     {
