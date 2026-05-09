@@ -40,4 +40,9 @@ class WorkOrder extends Model
     {
         return $this->belongsTo(User::class, 'tecnico_id');
     }
+
+    public function technicians()
+    {
+        return $this->belongsToMany(User::class, 'work_order_technician', 'work_order_id', 'technician_id');
+    }
 }

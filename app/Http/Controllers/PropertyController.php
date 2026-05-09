@@ -422,13 +422,24 @@ class PropertyController extends Controller
     {
         try {
             $request->validate([
-                'tecnico_id' => 'sometimes|required|exists:users,id'
+                'tecnicos_ids' => 'sometimes|array',
+                'tecnico_id' => 'sometimes|exists:users,id'
             ]);
 
             $workOrder = WorkOrder::with('property')->findOrFail($id);
             
-            if ($request->has('tecnico_id')) {
+            $isRescheduling = false;
+            
+            if ($request->has('tecnicos_ids') && is_array($request->tecnicos_ids)) {
+                $workOrder->technicians()->sync($request->tecnicos_ids);
+                if (count($request->tecnicos_ids) > 0) {
+                    $workOrder->tecnico_id = $request->tecnicos_ids[0]; // backward compatibility
+                } else {
+                    $workOrder->tecnico_id = null;
+                }
+            } else if ($request->has('tecnico_id')) {
                 $workOrder->tecnico_id = $request->tecnico_id;
+                $workOrder->technicians()->sync([$request->tecnico_id]);
             }
             
             if ($request->has('custom_checklist')) {
@@ -436,34 +447,43 @@ class PropertyController extends Controller
             }
             
             if ($request->has('scheduled_at')) {
+                $isRescheduling = $workOrder->technicians()->count() > 0 && !$request->has('tecnicos_ids') && !$request->has('tecnico_id');
                 $workOrder->scheduled_at = $request->scheduled_at;
             }
             
-            $isRescheduling = $request->has('scheduled_at') && $workOrder->tecnico_id;
             $workOrder->save();
 
-            // 1. Notificación al Técnico
-            if ($request->has('tecnico_id') || ($request->has('scheduled_at') && $workOrder->tecnico_id)) {
-                $tecnicoId = $request->tecnico_id ?? $workOrder->tecnico_id;
-                $tecnico = User::find($tecnicoId);
-                
+            // 1. Notificación a los Técnicos
+            $techIdsToNotify = [];
+            if ($request->has('tecnicos_ids')) {
+                $techIdsToNotify = $request->tecnicos_ids;
+            } else if ($request->has('tecnico_id')) {
+                $techIdsToNotify = [$request->tecnico_id];
+            } else if ($request->has('scheduled_at') && $workOrder->technicians()->count() > 0) {
+                 $techIdsToNotify = $workOrder->technicians()->pluck('users.id')->toArray();
+            }
+
+            foreach ($techIdsToNotify as $tId) {
+                $tecnico = User::find($tId);
                 if ($tecnico) {
-                    if ($isRescheduling && !$request->has('tecnico_id')) {
-                         // Solo se reprogramó la fecha (el técnico ya estaba asignado)
+                    if ($isRescheduling) {
                          $adminName = auth()->user() ? (auth()->user()->first_name . ' ' . auth()->user()->last_name) : 'El administrador';
                          Notification::send($tecnico, new WorkOrderRescheduledTechnician($workOrder, $adminName));
-                    } else if ($request->has('tecnico_id')) {
-                         // Es una asignación nueva o cambio de técnico
+                    } else {
                          Notification::send($tecnico, new WorkOrderAssigned($workOrder));
                     }
                 }
             }
 
             // 2. Notificación al Cliente (Si se programó la fecha)
-            if ($request->has('scheduled_at') && $workOrder->tecnico_id) {
+            if ($request->has('scheduled_at') && $workOrder->technicians()->count() > 0) {
                 try {
-                    $tecnico = User::find($workOrder->tecnico_id);
-                    $tecnicoName = $tecnico ? ($tecnico->first_name . ' ' . $tecnico->last_name) : 'Asignado';
+                    $primerTecnico = $workOrder->technicians()->first();
+                    $tecnicoName = $primerTecnico ? ($primerTecnico->first_name . ' ' . $primerTecnico->last_name) : 'Asignado';
+                    if ($workOrder->technicians()->count() > 1) {
+                        $tecnicoName .= ' y equipo';
+                    }
+                    
                     $propertyName = $workOrder->property ? ($workOrder->property->property_name ?: $workOrder->property->address) : 'Tu propiedad';
                     
                     // Obtener el usuario del cliente
@@ -482,7 +502,7 @@ class PropertyController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Orden de trabajo actualizada correctamente',
-                'tecnico_nombre' => isset($tecnico) && $tecnico ? ($tecnico->first_name . ' ' . $tecnico->last_name) : null
+                'tecnico_nombre' => isset($primerTecnico) && $primerTecnico ? ($primerTecnico->first_name . ' ' . $primerTecnico->last_name) : null
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);

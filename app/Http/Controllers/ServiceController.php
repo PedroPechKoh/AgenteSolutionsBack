@@ -238,14 +238,37 @@ class ServiceController extends Controller
                 return response()->json(['success' => false, 'message' => 'Servicio no encontrado'], 404);
             }
 
-            $servicio->assigned_to = $request->tecnico_id;
-            $servicio->scheduled_start = $request->scheduled_start;
-            $servicio->custom_checklist = $request->custom_checklist; 
+            if ($request->has('tecnicos_ids') && is_array($request->tecnicos_ids)) {
+                $servicio->technicians()->sync($request->tecnicos_ids);
+                if (count($request->tecnicos_ids) > 0) {
+                    $servicio->assigned_to = $request->tecnicos_ids[0]; // backward compatibility
+                } else {
+                    $servicio->assigned_to = null;
+                }
+            } else if ($request->has('tecnico_id')) {
+                $servicio->assigned_to = $request->tecnico_id;
+                $servicio->technicians()->sync([$request->tecnico_id]);
+            }
+
+            if ($request->has('scheduled_start')) {
+                $servicio->scheduled_start = $request->scheduled_start;
+            }
+            if ($request->has('custom_checklist')) {
+                $servicio->custom_checklist = $request->custom_checklist; 
+            }
+            
             $servicio->status = 'Programado';
             $servicio->save();
 
-            if ($servicio->assigned_to) {
-                $tecnicoUser = User::find($servicio->assigned_to);
+            $techIdsToNotify = [];
+            if ($request->has('tecnicos_ids')) {
+                $techIdsToNotify = $request->tecnicos_ids;
+            } else if ($request->has('tecnico_id')) {
+                $techIdsToNotify = [$request->tecnico_id];
+            }
+
+            foreach ($techIdsToNotify as $tId) {
+                $tecnicoUser = User::find($tId);
                 if ($tecnicoUser) {
                     \Illuminate\Support\Facades\Notification::send($tecnicoUser, new \App\Notifications\WorkAssigned($servicio));
                 }
@@ -253,7 +276,7 @@ class ServiceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Trabajo y Checklist asignados correctamente al técnico.'
+                'message' => 'Trabajo y Checklist asignados correctamente al equipo.'
             ], 200);
 
         } catch (\Exception $e) {
@@ -280,15 +303,15 @@ class ServiceController extends Controller
             $isWorkOrder = false;
 
             if ($type === 'work_order') {
-                $model = WorkOrder::with(['property.client', 'tecnico'])->find($realId);
+                $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
                 $isWorkOrder = true;
             } elseif ($type === 'servicio') {
-                $model = Service::with(['property.client', 'technician'])->find($realId);
+                $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
             } else {
                 // Fallback: Buscar en servicios primero, luego en órdenes
-                $model = Service::with(['property.client', 'technician'])->find($realId);
+                $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
                 if (!$model) {
-                    $model = WorkOrder::with(['property.client', 'tecnico'])->find($realId);
+                    $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
                     $isWorkOrder = true;
                 }
             }
@@ -301,6 +324,33 @@ class ServiceController extends Controller
             $client = $property ? $property->client : null;
 
             $secciones = $this->getFormattedSecciones($model->property_id);
+            
+            // Map the team
+            $team = [];
+            if ($model->technicians && $model->technicians->count() > 0) {
+                foreach ($model->technicians as $t) {
+                    $team[] = [
+                        'id' => $t->id,
+                        'name' => $t->first_name . ' ' . $t->last_name,
+                        'picture' => $t->profile_picture,
+                        'role' => 'TÉCNICO'
+                    ];
+                }
+            } else if ($isWorkOrder && $model->tecnico) {
+                 $team[] = [
+                        'id' => $model->tecnico->id,
+                        'name' => $model->tecnico->first_name . ' ' . $model->tecnico->last_name,
+                        'picture' => $model->tecnico->profile_picture,
+                        'role' => 'TÉCNICO'
+                 ];
+            } else if (!$isWorkOrder && $model->technician) {
+                 $team[] = [
+                        'id' => $model->technician->id,
+                        'name' => $model->technician->first_name . ' ' . $model->technician->last_name,
+                        'picture' => $model->technician->profile_picture,
+                        'role' => 'TÉCNICO'
+                 ];
+            }
 
             if ($isWorkOrder) {
                 return response()->json([
@@ -318,6 +368,7 @@ class ServiceController extends Controller
                     'propiedad_nombre' => $property ? $property->property_name : 'Propiedad Sin Nombre',
                     'foto_fachada' => $property ? $property->facade_photo_path : null,
                     'tecnico' => $model->tecnico ? ($model->tecnico->first_name . ' ' . $model->tecnico->last_name) : 'Sin Asignar',
+                    'technicians' => $team,
                     'fecha_programada' => $model->scheduled_at ? $model->scheduled_at->format('Y-m-d H:i:s') : null,
                     'descripcion' => $model->description,
                     'custom_checklist' => $model->custom_checklist,
@@ -341,6 +392,7 @@ class ServiceController extends Controller
                     'propiedad_nombre' => $property ? $property->property_name : 'Propiedad Sin Nombre',
                     'foto_fachada' => $property ? $property->facade_photo_path : null,
                     'tecnico' => $model->technician ? ($model->technician->first_name . ' ' . $model->technician->last_name) : 'Sin Asignar',
+                    'technicians' => $team,
                     'fecha_programada' => $model->scheduled_start,
                     'descripcion' => $model->description,
                     'property_id' => $model->property_id,
@@ -441,6 +493,7 @@ class ServiceController extends Controller
             $servicios = DB::table('services')
                 ->join('properties', 'services.property_id', '=', 'properties.id')
                 ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                ->leftJoin('service_technician', 'services.id', '=', 'service_technician.service_id')
                 ->select(
                     'services.*', 
                     'properties.property_name', 
@@ -451,13 +504,18 @@ class ServiceController extends Controller
                     'clients.name as client_name',
                     'clients.phone as client_phone'
                 )
-                ->where('services.assigned_to', $idTecnico)
+                ->where(function ($query) use ($idTecnico) {
+                    $query->where('services.assigned_to', $idTecnico)
+                          ->orWhere('service_technician.technician_id', $idTecnico);
+                })
+                ->distinct()
                 ->get();
 
             // 2. Obtener de la tabla 'work_orders'
             $workOrders = DB::table('work_orders')
                 ->join('properties', 'work_orders.property_id', '=', 'properties.id')
                 ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
                 ->select(
                     'work_orders.*',
                     'properties.property_name', 
@@ -468,7 +526,11 @@ class ServiceController extends Controller
                     'clients.name as client_name',
                     'clients.phone as client_phone'
                 )
-                ->where('work_orders.tecnico_id', $idTecnico)
+                ->where(function ($query) use ($idTecnico) {
+                    $query->where('work_orders.tecnico_id', $idTecnico)
+                          ->orWhere('work_order_technician.technician_id', $idTecnico);
+                })
+                ->distinct()
                 ->get();
 
             // 3. Unificar (Normalizando nombres de campos)

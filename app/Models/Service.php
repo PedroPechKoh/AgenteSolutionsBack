@@ -50,5 +50,10 @@ class Service extends Model
     {
         return $this->belongsToMany(PropertyComponent::class, 'service_component');
     }
+
+    public function technicians()
+    {
+        return $this->belongsToMany(User::class, 'service_technician', 'service_id', 'technician_id');
+    }
 }
 
