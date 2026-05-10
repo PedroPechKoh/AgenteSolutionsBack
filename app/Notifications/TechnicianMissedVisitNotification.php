@@ -35,7 +35,8 @@ class TechnicianMissedVisitNotification extends Notification
             'message' => "El técnico {$this->technicianName} no se presentó a la visita programada para el {$fecha} en {$propertyName}.",
             'service_id' => $this->service->id,
             'type' => 'missed_visit',
-            'icon' => 'AlertTriangle'
+            'icon' => 'AlertTriangle',
+            'url' => '/tablero-servicios'
         ];
     }
 }
