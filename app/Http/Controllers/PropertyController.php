@@ -375,10 +375,30 @@ class PropertyController extends Controller
                 'status' => 'required|in:Por Hacer,En Proceso,Listo'
             ]);
 
-            DB::table('work_orders')->where('id', $id)->update([
-                'status' => $request->status,
-                'updated_at' => now()
-            ]);
+            $workOrder = WorkOrder::with('property')->findOrFail($id);
+            $oldStatus = $workOrder->status;
+            
+            $workOrder->status = $request->status;
+            $workOrder->updated_at = now();
+            $workOrder->save();
+
+            // Si el técnico marca como "Listo", notificamos al Admin
+            if ($request->status === 'Listo' && $oldStatus !== 'Listo') {
+                try {
+                    $user = auth('sanctum')->user();
+                    $technicianName = $user ? ($user->first_name . ' ' . $user->last_name) : 'Un técnico';
+                    
+                    $propertyName = $workOrder->property ? ($workOrder->property->property_name ?: $workOrder->property->address) : 'Propiedad desconocida';
+                    
+                    // Obtenemos administradores (rol 1 y 0)
+                    $admins = User::whereIn('role_id', [0, 1])->get();
+                    
+                    Notification::send($admins, new \App\Notifications\WorkOrderFinishedNotification($workOrder, $technicianName, $propertyName));
+                    \Log::info("Notificación de trabajo finalizado enviada a admins.");
+                } catch (\Exception $e) {
+                    \Log::error("Error enviando notificación de trabajo finalizado: " . $e->getMessage());
+                }
+            }
 
             return response()->json(['success' => true, 'message' => 'Estado actualizado']);
         } catch (\Exception $e) {
