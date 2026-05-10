@@ -314,7 +314,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reportes-globales', function () {
         return \App\Models\WorkReport::with([
             'technician:id,first_name,last_name,profile_picture',
-            'service.property.client'
+            'service.property.client',
+            'workOrder.property.client'
         ])->orderBy('created_at', 'desc')->get();
     });
 

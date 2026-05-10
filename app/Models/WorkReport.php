@@ -22,4 +22,9 @@ class WorkReport extends Model
     {
         return $this->belongsTo(User::class, 'technician_id');
     }
+
+    public function workOrder()
+    {
+        return $this->belongsTo(WorkOrder::class, 'service_id');
+    }
 }
