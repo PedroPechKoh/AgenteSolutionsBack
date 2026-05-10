@@ -310,4 +310,12 @@ Route::middleware('auth:sanctum')->group(function () {
         return \App\Models\WorkOrder::with(['property', 'tecnico'])->orderBy('created_at', 'desc')->get();
     });
 
+    // Nuevo: Obtener todos los reportes globales (Galería Global de Administradores)
+    Route::get('/reportes-globales', function () {
+        return \App\Models\WorkReport::with([
+            'technician:id,first_name,last_name,profile_picture',
+            'service.property.client'
+        ])->orderBy('created_at', 'desc')->get();
+    });
+
 });
