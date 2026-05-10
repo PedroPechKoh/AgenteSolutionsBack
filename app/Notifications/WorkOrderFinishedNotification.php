@@ -46,7 +46,7 @@ class WorkOrderFinishedNotification extends Notification
             'alert_type' => 'work_order_finished',
             'title' => 'Trabajo Finalizado',
             'message' => "{$this->technicianName} terminó el trabajo en {$this->propertyName}",
-            'url' => "/VistaServiciosAdmin"
+            'url' => "/reportes-globales"
         ];
     }
 }
