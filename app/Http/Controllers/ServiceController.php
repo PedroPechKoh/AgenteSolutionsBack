@@ -71,6 +71,9 @@ class ServiceController extends Controller
     public function storeFinalReport(Request $request, $id)
     {
         try {
+            \Log::info("Iniciando guardado de reporte final para ID: " . $id);
+            \Log::info("Datos recibidos: ", $request->all());
+
             $realId = $id;
             $type = 'service_id';
 
@@ -82,15 +85,30 @@ class ServiceController extends Controller
             }
 
             $data = $request->all();
+            
+            // Mapear campos de español (frontend) a inglés (BD) si es necesario
+            if (isset($data['materiales'])) $data['materials'] = $data['materiales'];
+            if (isset($data['observaciones'])) $data['observations'] = $data['observaciones'];
+            if (isset($data['imagenes'])) $data['selected_images'] = $data['imagenes'];
+            if (isset($data['fechaTrabajo'])) $data['report_date'] = $data['fechaTrabajo'];
+            if (isset($data['horaInicio'])) $data['start_time'] = $data['horaInicio'];
+            if (isset($data['horaFin'])) $data['end_time'] = $data['horaFin'];
+
             $data[$type] = $realId;
+
+            \Log::info("Datos normalizados para BD: ", $data);
 
             $report = FinalWorkReport::updateOrCreate(
                 [$type => $realId],
                 $data
             );
             
+            \Log::info("Reporte guardado con éxito ID: " . $report->id);
+
             return response()->json(['success' => true, 'report' => $report], 200);
         } catch (\Exception $e) {
+            \Log::error("Error en storeFinalReport: " . $e->getMessage());
+            \Log::error($e->getTraceAsString());
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
         }
     }
