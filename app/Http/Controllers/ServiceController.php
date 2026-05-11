@@ -71,10 +71,24 @@ class ServiceController extends Controller
     public function storeFinalReport(Request $request, $id)
     {
         try {
+            $realId = $id;
+            $type = 'service_id';
+
+            if (str_contains($id, '-')) {
+                $parts = explode('-', $id);
+                $prefix = $parts[0];
+                $realId = $parts[1];
+                $type = ($prefix === 'work_order') ? 'work_order_id' : 'service_id';
+            }
+
+            $data = $request->all();
+            $data[$type] = $realId;
+
             $report = FinalWorkReport::updateOrCreate(
-                ['service_id' => $id],
-                $request->all()
+                [$type => $realId],
+                $data
             );
+            
             return response()->json(['success' => true, 'report' => $report], 200);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
@@ -84,7 +98,17 @@ class ServiceController extends Controller
     public function getFinalReport($id)
     {
         try {
-            $report = FinalWorkReport::where('service_id', $id)->first();
+            $realId = $id;
+            $type = 'service_id';
+
+            if (str_contains($id, '-')) {
+                $parts = explode('-', $id);
+                $prefix = $parts[0];
+                $realId = $parts[1];
+                $type = ($prefix === 'work_order') ? 'work_order_id' : 'service_id';
+            }
+
+            $report = FinalWorkReport::where($type, $realId)->first();
             return response()->json($report, 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);

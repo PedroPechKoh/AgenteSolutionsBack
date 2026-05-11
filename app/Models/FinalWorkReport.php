@@ -8,6 +8,7 @@ class FinalWorkReport extends Model
 {
     protected $fillable = [
         'service_id',
+        'work_order_id',
         'folio',
         'report_date',
         'start_time',
@@ -26,5 +27,10 @@ class FinalWorkReport extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function workOrder()
+    {
+        return $this->belongsTo(WorkOrder::class);
     }
 }
