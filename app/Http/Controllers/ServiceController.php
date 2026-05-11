@@ -288,14 +288,16 @@ class ServiceController extends Controller
                         ? ($s->technician->first_name . ' ' . $s->technician->last_name)
                         : '⚠️ Por Asignar',
 
-                    'propiedad_nombre' => $s->property
-                        ? (strtoupper($s->property->type) . ' - ' . ($s->property->custom_curp ?? 'SIN CURP'))
-                        : 'N/A',
-                        
+                    'propiedad_nombre' => $s->property ? $s->property->property_name : 'N/A',
+                    'propiedad_tipo' => $s->property ? $s->property->type : 'N/A',
+                    'curp' => $s->property ? $s->property->custom_curp : 'S/N',
                     'cliente_nombre' => ($s->property && $s->property->client) ? $s->property->client->name : 'Usuario',
-
                     'direccion' => $s->property ? $s->property->address : 'N/A',
-                    'fecha_programada' => $s->scheduled_start
+                    'fecha_programada' => $s->scheduled_start,
+                    'foto_fachada' => $s->property ? $s->property->facade_photo_path : null,
+                    'supervisor_name' => $s->supervisor_name,
+                    'description' => $s->description,
+                    'prioridad' => $s->priority,
                 ];
             });
 
