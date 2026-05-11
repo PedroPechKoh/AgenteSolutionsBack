@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Log;
 use App\Notifications\TechnicianMissedVisitNotification;
 use App\Models\WorkOrder;
 use App\Models\WorkReport;
+use App\Models\FinalWorkReport;
+
 
 class ServiceController extends Controller
 {
@@ -63,6 +65,29 @@ class ServiceController extends Controller
         } catch (\Exception $e) {
             Log::error("Error guardando reporte: " . $e->getMessage());
             return response()->json(['success' => false, 'error' => 'Error al guardar reporte: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function storeFinalReport(Request $request, $id)
+    {
+        try {
+            $report = FinalWorkReport::updateOrCreate(
+                ['service_id' => $id],
+                $request->all()
+            );
+            return response()->json(['success' => true, 'report' => $report], 200);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function getFinalReport($id)
+    {
+        try {
+            $report = FinalWorkReport::where('service_id', $id)->first();
+            return response()->json($report, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 
