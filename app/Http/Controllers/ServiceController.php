@@ -403,6 +403,8 @@ class ServiceController extends Controller
                         'id' => $t->id,
                         'name' => $t->first_name . ' ' . $t->last_name,
                         'picture' => $t->profile_picture,
+                        'email' => $t->email,
+                        'phone_number' => $t->phone_number,
                         'role' => 'TÉCNICO'
                     ];
                 }
@@ -411,6 +413,8 @@ class ServiceController extends Controller
                         'id' => $model->tecnico->id,
                         'name' => $model->tecnico->first_name . ' ' . $model->tecnico->last_name,
                         'picture' => $model->tecnico->profile_picture,
+                        'email' => $model->tecnico->email,
+                        'phone_number' => $model->tecnico->phone_number,
                         'role' => 'TÉCNICO'
                  ];
             } else if (!$isWorkOrder && $model->technician) {
@@ -418,6 +422,8 @@ class ServiceController extends Controller
                         'id' => $model->technician->id,
                         'name' => $model->technician->first_name . ' ' . $model->technician->last_name,
                         'picture' => $model->technician->profile_picture,
+                        'email' => $model->technician->email,
+                        'phone_number' => $model->technician->phone_number,
                         'role' => 'TÉCNICO'
                  ];
             }
@@ -439,6 +445,8 @@ class ServiceController extends Controller
                     'foto_fachada' => $property ? $property->facade_photo_path : null,
                     'cliente_email' => $client ? $client->email : null,
                     'tecnico' => $model->tecnico ? ($model->tecnico->first_name . ' ' . $model->tecnico->last_name) : 'Sin Asignar',
+                    'tecnico_email' => $model->tecnico ? $model->tecnico->email : null,
+                    'tecnico_celular' => $model->tecnico ? $model->tecnico->phone_number : null,
                     'technicians' => $team,
                     'fecha_programada' => $model->scheduled_at ? $model->scheduled_at->format('Y-m-d H:i:s') : null,
                     'descripcion' => $model->description,
@@ -464,6 +472,8 @@ class ServiceController extends Controller
                     'foto_fachada' => $property ? $property->facade_photo_path : null,
                     'cliente_email' => $client ? $client->email : null,
                     'tecnico' => $model->technician ? ($model->technician->first_name . ' ' . $model->technician->last_name) : 'Sin Asignar',
+                    'tecnico_email' => $model->technician ? $model->technician->email : null,
+                    'tecnico_celular' => $model->technician ? $model->technician->phone_number : null,
                     'technicians' => $team,
                     'fecha_programada' => $model->scheduled_start,
                     'descripcion' => $model->description,
