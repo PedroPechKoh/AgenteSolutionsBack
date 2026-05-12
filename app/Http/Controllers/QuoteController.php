@@ -88,34 +88,49 @@ class QuoteController extends Controller
     public function index()
     {
         try {
-            // Traemos las cotizaciones, ordenadas por la más reciente
             $user = auth()->user();
 
-            $quotesQuery = Quote::with(['service.property.client', 'service.technician']);
+            // Cargamos ambas relaciones para soportar ambos flujos
+            $quotesQuery = Quote::with([
+                'service.property.client', 
+                'service.technician',
+                'workOrder.property.client',
+                'workOrder.tecnico'
+            ]);
 
+            // Si es cliente (rol 3), filtrar por sus servicios o sus órdenes de trabajo
             if ($user && $user->role_id === 3) {
-                $quotesQuery = $quotesQuery->whereHas('service.property.client', function ($query) use ($user) {
-                    $query->where('user_id', $user->id);
+                $quotesQuery = $quotesQuery->where(function($q) use ($user) {
+                    $q->whereHas('service.property.client', function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })->orWhereHas('workOrder.property.client', function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    });
                 });
             }
 
             $quotes = $quotesQuery->orderBy('created_at', 'desc')
                                   ->get()
                                   ->map(function($quote) {
+                                      // Obtenemos el cliente y técnico de la relación que esté disponible
+                                      $client = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
+                                      $tecnicoModel = $quote->service->technician ?? $quote->workOrder->tecnico ?? null;
+
                                       return [
                                           'id' => $quote->id,
-                                          'service_id' => $quote->service_id, // Útil para vincular en React
+                                          'service_id' => $quote->service_id,
+                                          'work_order_id' => $quote->work_order_id,
                                           'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),
-                                          'cliente' => $quote->service->property->client->name ?? 'Sin Cliente',
-                                          'cliente_id' => $quote->service->property->client->id ?? null,
-                                          'cliente_user_id' => $quote->service->property->client->user_id ?? null,
-                                          'tecnico' => $quote->service->technician ? ($quote->service->technician->first_name . ' ' . $quote->service->technician->last_name) : 'Sin Técnico',
+                                          'cliente' => $client->name ?? 'Sin Cliente',
+                                          'cliente_id' => $client->id ?? null,
+                                          'cliente_user_id' => $client->user_id ?? null,
+                                          'tecnico' => $tecnicoModel ? ($tecnicoModel->first_name . ' ' . $tecnicoModel->last_name) : 'Sin Técnico',
                                           'fecha' => $quote->created_at->format('Y-m-d'),
                                           'total' => $quote->estimated_amount ?? 0,
-                                          'estado' => $quote->status,
-                                          'tipo' => $quote->type,
-                                          'concepto' => $quote->concept,
-                                          'observaciones' => $quote->observations,
+                                          'status' => $quote->status,
+                                          'type' => $quote->type,
+                                          'concept' => $quote->concept,
+                                          'observations' => $quote->observations,
                                           'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
                                       ];
                                   });
