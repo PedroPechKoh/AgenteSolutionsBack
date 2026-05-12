@@ -37,7 +37,8 @@ class QuoteController extends Controller
 
             // Si es manual, guardamos los textos
             if ($request->type === 'manual') {
-                $quote->concept = $request->concept;
+                // Como viene de FormData, el JSON llega como string. Lo decodificamos.
+                $quote->concept = is_string($request->concept) ? json_decode($request->concept, true) : $request->concept;
                 $quote->estimated_amount = $request->estimated_amount;
                 $quote->validity_days = $request->validity_days ?? 15;
                 $quote->observations = $request->observations;
