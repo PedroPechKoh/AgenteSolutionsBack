@@ -60,6 +60,12 @@ class QuoteController extends Controller
 
             $quote->save();
 
+            // Notificar a los administradores si la crea un técnico
+            if ($user && $user->role_id === 2) {
+                $admins = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TechnicianQuoteSubmitted($quote));
+            }
+
             // Solo notificar al cliente si la crea el Admin (rol 0 o 1) y es para un servicio
             if ($user && in_array($user->role_id, [0, 1])) {
                 $quote->load('service.property.client');
