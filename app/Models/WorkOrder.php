@@ -45,4 +45,9 @@ class WorkOrder extends Model
     {
         return $this->belongsToMany(User::class, 'work_order_technician', 'work_order_id', 'technician_id');
     }
+
+    public function workReports()
+    {
+        return $this->hasMany(WorkReport::class, 'work_order_id');
+    }
 }

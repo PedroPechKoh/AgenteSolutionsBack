@@ -27,8 +27,17 @@ class ServiceController extends Controller
     public function getReports($id)
     {
         try {
+            $realId = $id;
+            $type = 'service_id';
+
+            if (str_contains($id, '-')) {
+                $parts = explode('-', $id);
+                $type = ($parts[0] === 'work_order') ? 'work_order_id' : 'service_id';
+                $realId = $parts[1];
+            }
+
             $reports = WorkReport::with('technician:id,first_name,last_name,profile_picture')
-                ->where('service_id', $id)
+                ->where($type, $realId)
                 ->orderBy('created_at', 'desc')
                 ->get();
             return response()->json($reports, 200);
@@ -45,13 +54,28 @@ class ServiceController extends Controller
                 'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:10240',
             ]);
 
+            $realId = $id;
+            $column = 'service_id';
+
+            if (str_contains($id, '-')) {
+                $parts = explode('-', $id);
+                $prefix = $parts[0];
+                $realId = $parts[1];
+                $column = ($prefix === 'work_order') ? 'work_order_id' : 'service_id';
+            } else {
+                // Si no hay prefijo, intentamos deducir si es servicio o work_order
+                // Pero lo más seguro es que el frontend envíe el prefijo si lo configuramos
+                // Por ahora, si no hay prefijo, asumimos service_id por retrocompatibilidad
+                $column = 'service_id';
+            }
+
             $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
             $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
                 'folder' => 'agente_reportes'
             ]);
 
             $report = WorkReport::create([
-                'service_id' => $id,
+                $column => $realId,
                 'technician_id' => $request->user()->id,
                 'image_url' => $respuestaNube['secure_url'],
                 'description' => $request->description,

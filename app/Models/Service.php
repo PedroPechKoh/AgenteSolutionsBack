@@ -55,5 +55,10 @@ class Service extends Model
     {
         return $this->belongsToMany(User::class, 'service_technician', 'service_id', 'technician_id');
     }
+
+    public function workReports()
+    {
+        return $this->hasMany(WorkReport::class, 'service_id');
+    }
 }
 

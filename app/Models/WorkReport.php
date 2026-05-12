@@ -8,6 +8,7 @@ class WorkReport extends Model
 {
     protected $fillable = [
         'service_id',
+        'work_order_id',
         'technician_id',
         'image_url',
         'description',
@@ -25,6 +26,6 @@ class WorkReport extends Model
 
     public function workOrder()
     {
-        return $this->belongsTo(WorkOrder::class, 'service_id');
+        return $this->belongsTo(WorkOrder::class);
     }
 }
