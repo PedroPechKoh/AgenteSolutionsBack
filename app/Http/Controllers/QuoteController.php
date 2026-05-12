@@ -15,14 +15,25 @@ class QuoteController extends Controller
         try {
             // Validamos lo básico
             $request->validate([
-                'service_id' => 'required|exists:services,id',
+                'service_id' => 'nullable|exists:services,id',
+                'work_order_id' => 'nullable|exists:work_orders,id',
                 'type' => 'required|in:manual,archivo',
             ]);
 
+            $user = auth()->user();
             $quote = new Quote();
             $quote->service_id = $request->service_id;
+            $quote->work_order_id = $request->work_order_id;
             $quote->type = $request->type;
-            $quote->status = 'Pendiente'; // Estado por defecto
+            
+            // Si el usuario es técnico (rol 2), el estado es "Pendiente de Admin"
+            if ($user && $user->role_id === 2) {
+                $quote->status = 'Pendiente de Admin';
+                $quote->created_by_role = 'Técnico';
+            } else {
+                $quote->status = 'Pendiente'; // Estado por defecto para Admin
+                $quote->created_by_role = 'Admin';
+            }
 
             // Si es manual, guardamos los textos
             if ($request->type === 'manual') {
@@ -49,12 +60,14 @@ class QuoteController extends Controller
 
             $quote->save();
 
-            // Notificar al cliente
-            $quote->load('service.property.client');
-            if ($quote->service && $quote->service->property && $quote->service->property->client && $quote->service->property->client->user_id) {
-                $clienteUser = User::find($quote->service->property->client->user_id);
-                if ($clienteUser) {
-                    \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteAvailable($quote));
+            // Solo notificar al cliente si la crea el Admin (rol 0 o 1) y es para un servicio
+            if ($user && in_array($user->role_id, [0, 1])) {
+                $quote->load('service.property.client');
+                if ($quote->service && $quote->service->property && $quote->service->property->client && $quote->service->property->client->user_id) {
+                    $clienteUser = User::find($quote->service->property->client->user_id);
+                    if ($clienteUser) {
+                        \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteAvailable($quote));
+                    }
                 }
             }
 

@@ -16,4 +16,9 @@ class Quote extends Model
     {
         return $this->belongsTo(Service::class);
     }
+
+    public function workOrder()
+    {
+        return $this->belongsTo(WorkOrder::class);
+    }
 }
