@@ -99,6 +99,65 @@ class QuoteController extends Controller
         }
     }
 
+    public function update(Request $request, $id)
+    {
+        try {
+            $quote = Quote::findOrFail($id);
+            
+            // Si el usuario es técnico (rol 2), el estado vuelve a "Pendiente de Admin"
+            // Si es Admin, puede enviarla directo a "Pendiente" (para el cliente)
+            $user = auth()->user();
+            if ($user && $user->role_id === 2) {
+                $quote->status = 'Pendiente de Admin';
+            } else {
+                $quote->status = 'Pendiente';
+            }
+
+            if ($request->type === 'manual') {
+                $quote->concept = is_string($request->concept) ? json_decode($request->concept, true) : $request->concept;
+                $quote->estimated_amount = $request->estimated_amount;
+                $quote->validity_days = $request->validity_days ?? 15;
+                
+                // Agregamos el nuevo comentario a las observaciones existentes
+                if ($request->observations) {
+                    $quote->observations = ($quote->observations ? $quote->observations . "\n\n" : "") . $request->observations;
+                }
+                
+                if ($request->internal_observations) {
+                    $quote->internal_observations = ($quote->internal_observations ? $quote->internal_observations . "\n\n" : "") . $request->internal_observations;
+                }
+            } else {
+                if ($request->hasFile('file')) {
+                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('file')->getRealPath(), [
+                        'folder' => 'cotizaciones_pdf',
+                        'resource_type' => 'raw'
+                    ]);
+                    $quote->file_path = $respuestaNube['secure_url'];
+                }
+            }
+
+            $quote->save();
+
+            // Notificar de nuevo si es necesario
+            if ($user && in_array($user->role_id, [0, 1])) {
+                $quote->load(['service.property.client', 'workOrder.property.client']);
+                $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
+                if ($cliente && $cliente->user_id) {
+                    $clienteUser = User::find($cliente->user_id);
+                    if ($clienteUser) {
+                        \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteAvailable($quote));
+                    }
+                }
+            }
+
+            return response()->json(['message' => 'Cotización actualizada y reenviada', 'quote' => $quote], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al actualizar: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function index()
     {
         try {
