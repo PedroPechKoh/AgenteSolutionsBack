@@ -121,7 +121,7 @@ class QuoteController extends Controller
 
             $quotes = $quotesQuery->orderBy('created_at', 'desc')
                                   ->get()
-                                  ->map(function($quote) {
+                                  ->map(function($quote) use ($user) {
                                       // Obtenemos el cliente y técnico de la relación que esté disponible
                                       $client = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
                                       $tecnicoModel = $quote->service->technician ?? $quote->workOrder->tecnico ?? null;
@@ -135,16 +135,16 @@ class QuoteController extends Controller
                                           'cliente_id' => $client->id ?? null,
                                           'cliente_user_id' => $client->user_id ?? null,
                                           'tecnico' => $tecnicoModel ? ($tecnicoModel->first_name . ' ' . $tecnicoModel->last_name) : 'Sin Técnico',
-                                          'fecha' => $quote->created_at->format('Y-m-d'),
+                                          'fecha' => $quote->created_at ? $quote->created_at->format('Y-m-d') : '---',
                                           'created_at' => $quote->created_at,
                                           'total' => $quote->estimated_amount ?? 0,
                                           'status' => $quote->status,
                                           'type' => $quote->type,
                                           'concept' => $quote->concept,
                                           'observations' => $quote->observations,
-                                          'internal_observations' => ($user && $user->role_id !== 3) ? $quote->internal_observations : null,
-                                          'created_by_role' => $quote->created_by_role,
-                                          'parent_id' => $quote->parent_id,
+                                          'internal_observations' => ($user && $user->role_id !== 3) ? ($quote->internal_observations ?? null) : null,
+                                          'created_by_role' => $quote->created_by_role ?? 'Admin',
+                                          'parent_id' => $quote->parent_id ?? null,
                                           'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
                                       ];
                                   });
