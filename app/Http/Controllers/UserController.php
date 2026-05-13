@@ -278,7 +278,18 @@ class UserController extends Controller
 
     public function getTecnicos()
     {
-        $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name']);
-        return response()->json($tecnicos);
+        $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name', 'profile_picture']);
+        
+        $formatted = $tecnicos->map(function ($u) {
+            $fotoUrl = $u->profile_picture ? (str_starts_with($u->profile_picture, 'http') ? $u->profile_picture : asset('storage/' . $u->profile_picture)) : null;
+            return [
+                'id' => $u->id,
+                'first_name' => $u->first_name,
+                'last_name' => $u->last_name,
+                'profile_picture_url' => $fotoUrl
+            ];
+        });
+
+        return response()->json($formatted);
     }
 }
