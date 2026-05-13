@@ -77,11 +77,15 @@ class QuoteController extends Controller
                 \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TechnicianQuoteSubmitted($quote));
             }
 
-            // Solo notificar al cliente si la crea el Admin (rol 0 o 1) y es para un servicio
+            // Solo notificar al cliente si la crea el Admin (rol 0 o 1)
             if ($user && in_array($user->role_id, [0, 1])) {
-                $quote->load('service.property.client');
-                if ($quote->service && $quote->service->property && $quote->service->property->client && $quote->service->property->client->user_id) {
-                    $clienteUser = User::find($quote->service->property->client->user_id);
+                // Intentamos obtener el usuario del cliente desde Servicio o desde Orden de Trabajo
+                $quote->load(['service.property.client', 'workOrder.property.client']);
+                
+                $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
+                
+                if ($cliente && $cliente->user_id) {
+                    $clienteUser = User::find($cliente->user_id);
                     if ($clienteUser) {
                         \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteAvailable($quote));
                     }
