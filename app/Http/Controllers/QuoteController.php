@@ -37,11 +37,11 @@ class QuoteController extends Controller
 
             // Si es manual, guardamos los textos
             if ($request->type === 'manual') {
-                // Como viene de FormData, el JSON llega como string. Lo decodificamos.
                 $quote->concept = is_string($request->concept) ? json_decode($request->concept, true) : $request->concept;
                 $quote->estimated_amount = $request->estimated_amount;
                 $quote->validity_days = $request->validity_days ?? 15;
                 $quote->observations = $request->observations;
+                $quote->internal_observations = $request->internal_observations;
             }
             // Si es archivo, subimos el documento
             else {
@@ -60,6 +60,16 @@ class QuoteController extends Controller
             }
 
             $quote->save();
+
+            // Si se está basando en otra cotización (parent_id), marcamos la original como procesada/aceptada
+            if ($request->parent_id) {
+                $quote->parent_id = $request->parent_id;
+                $parent = Quote::find($request->parent_id);
+                if ($parent) {
+                    $parent->status = 'Procesada por Admin';
+                    $parent->save();
+                }
+            }
 
             // Notificar a los administradores si la crea un técnico
             if ($user && $user->role_id === 2) {
@@ -106,7 +116,7 @@ class QuoteController extends Controller
                     })->orWhereHas('workOrder.property.client', function ($query) use ($user) {
                         $query->where('user_id', $user->id);
                     });
-                });
+                })->where('created_by_role', 'Admin'); // El cliente solo ve lo oficial del Admin
             }
 
             $quotes = $quotesQuery->orderBy('created_at', 'desc')
@@ -131,6 +141,9 @@ class QuoteController extends Controller
                                           'type' => $quote->type,
                                           'concept' => $quote->concept,
                                           'observations' => $quote->observations,
+                                          'internal_observations' => ($user && $user->role_id !== 3) ? $quote->internal_observations : null,
+                                          'created_by_role' => $quote->created_by_role,
+                                          'parent_id' => $quote->parent_id,
                                           'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
                                       ];
                                   });
