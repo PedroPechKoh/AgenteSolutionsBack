@@ -31,30 +31,13 @@ class PropertyComponentController extends Controller
                 ->whereIn('property_area_id', $areaIds)
                 ->get();
 
-            // Agrupar por nombre de área
-            $grouped = [];
-            
-            // Mapeo de IDs a nombres para rapidez
-            $areaNames = [(int)$areaId => $mainArea->name];
-            foreach ($subAreas as $sa) {
-                $areaNames[$sa->id] = $sa->name;
-            }
-
             foreach ($components as $component) {
-                $areaName = $areaNames[$component->property_area_id] ?? 'General';
-                
-                if (!isset($grouped[$areaName])) {
-                    $grouped[$areaName] = [];
-                }
-
                 $component->galleries = DB::table('component_galleries')
                     ->where('property_component_id', $component->id)
                     ->get();
-
-                $grouped[$areaName][] = $component;
             }
 
-            return response()->json($grouped, 200);
+            return response()->json($components, 200);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
