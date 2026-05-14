@@ -412,20 +412,18 @@ class PropertyController extends Controller
     public function getByCurp($curp)
     {
         try {
-            // Eliminar espacios adicionales y normalizar para la búsqueda
-            // En la base de datos el custom_curp puede no tener espacios, pero la URL podría tenerlos o guiones.
-            // La URL actual de RegistroZonas manda: CA YUC MER COR 69 273 RFT (con espacios)
-            // En store(), se genera así: "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}"
+            // Normalización extrema: quitamos espacios y guiones tanto de la búsqueda como de la BD
+            $curpLimpio = str_replace([' ', '-'], '', $curp);
             
-            // Primero, intentamos buscarlo tal cual, si no, reemplazamos espacios por guiones o viceversa
-            $curpConGuiones = str_replace(' ', '-', $curp);
-            
-            $property = Property::where('custom_curp', $curp)
-                                ->orWhere('custom_curp', $curpConGuiones)
+            $property = Property::whereRaw("REPLACE(REPLACE(custom_curp, ' ', ''), '-', '') = ?", [$curpLimpio])
                                 ->first();
 
             if (!$property) {
-                return response()->json(['error' => 'Propiedad no encontrada para el CURP proporcionado'], 404);
+                return response()->json([
+                    'error' => 'Propiedad no encontrada',
+                    'curp_buscado' => $curp,
+                    'curp_normalizado' => $curpLimpio
+                ], 404);
             }
 
             return response()->json($property, 200);
