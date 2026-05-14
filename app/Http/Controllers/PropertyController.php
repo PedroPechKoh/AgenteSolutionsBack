@@ -159,7 +159,7 @@ class PropertyController extends Controller
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                     ->exists();
 
-                // Buscamos el levantamiento técnico (Búsqueda amplia)
+                // Buscamos el levantamiento técnico EXCLUSIVAMENTE para esta propiedad
                 $levantamiento = DB::table('services')
                     ->where('property_id', $p->id)
                     ->where(function($q) {
@@ -168,14 +168,14 @@ class PropertyController extends Controller
                           ->orWhere('title', 'like', '%Registro%')
                           ->orWhere('title', 'like', '%Inicial%');
                     })
-                    ->orderBy('created_at', 'asc')
+                    ->orderBy('id', 'desc')
                     ->first();
 
                 // Fallback total
                 if (!$levantamiento) {
                     $levantamiento = DB::table('services')
                         ->where('property_id', $p->id)
-                        ->orderBy('created_at', 'asc')
+                        ->orderBy('id', 'desc')
                         ->first();
                 }
 
@@ -312,23 +312,23 @@ class PropertyController extends Controller
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
 
-            // Buscamos el levantamiento técnico para esta propiedad (Búsqueda más amplia)
+            // Buscamos el levantamiento técnico EXCLUSIVAMENTE para esta propiedad
             $levantamiento = DB::table('services')
-                ->where('property_id', $id)
+                ->where('property_id', $id) // Filtro estricto por ID de la propiedad actual
                 ->where(function($q) {
                     $q->where('title', 'like', '%Levantamiento%')
                       ->orWhere('title', 'like', '%Inventario%')
                       ->orWhere('title', 'like', '%Registro%')
                       ->orWhere('title', 'like', '%Inicial%');
                 })
-                ->orderBy('created_at', 'asc') // El primero que se haya hecho
+                ->orderBy('id', 'desc') // El más reciente siempre primero
                 ->first();
 
-            // Fallback total: Si no hay nada con esos nombres, tomamos el primer servicio que exista
+            // Fallback: Si no hay levantamiento con ese nombre, tomamos el último servicio de ESA propiedad
             if (!$levantamiento) {
                 $levantamiento = DB::table('services')
-                    ->where('property_id', $id)
-                    ->orderBy('created_at', 'asc')
+                    ->where('property_id', $id) // Mantenemos el filtro de propiedad aquí también
+                    ->orderBy('id', 'desc')
                     ->first();
             }
 
