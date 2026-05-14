@@ -243,6 +243,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/property-areas', [PropertyAreaController::class, 'index']);
     Route::get('/properties/{id}/areas', [PropertyAreaController::class, 'getByProperty']);
     Route::put('/property-areas/{id}', [PropertyAreaController::class, 'update']);
+    Route::post('/property-areas/{id}/update-photo', [PropertyAreaController::class, 'updatePhoto']);
     Route::delete('/property-areas/{id}', [PropertyAreaController::class, 'destroy']);
     Route::get('/areas/{id}/subareas', [PropertyAreaController::class, 'getSubAreas']);
 

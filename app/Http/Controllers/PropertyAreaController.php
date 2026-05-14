@@ -164,4 +164,37 @@ class PropertyAreaController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Actualizar solo la foto de una zona.
+     * POST /api/property-areas/{id}/update-photo
+     */
+    public function updatePhoto(Request $request, $id)
+    {
+        $user = auth('sanctum')->user();
+        if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+        $area = PropertyArea::findOrFail($id);
+
+        if ($request->hasFile('image')) {
+            try {
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_zonas'
+                ]);
+                $area->image_path = $respuestaNube['secure_url'];
+                $area->save();
+
+                return response()->json([
+                    'success' => true,
+                    'image_path' => $area->image_path
+                ], 200);
+            } catch (\Exception $e) {
+                Log::error("Error subiendo foto de zona: " . $e->getMessage());
+                return response()->json(['error' => 'Fallo al subir la imagen'], 500);
+            }
+        }
+
+        return response()->json(['error' => 'No se recibió ninguna imagen'], 400);
+    }
 }
