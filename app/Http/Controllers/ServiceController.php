@@ -36,6 +36,10 @@ class ServiceController extends Controller
                 $realId = $parts[1];
             }
 
+            if ($realId === 'null' || !$realId) {
+                return response()->json([], 200); // Retornar vacío si el ID es null
+            }
+
             $reports = WorkReport::with('technician:id,first_name,last_name,profile_picture')
                 ->where($type, $realId)
                 ->orderBy('created_at', 'desc')
@@ -108,6 +112,10 @@ class ServiceController extends Controller
                 $type = ($prefix === 'work_order') ? 'work_order_id' : 'service_id';
             }
 
+            if ($realId === 'null' || !$realId) {
+                return response()->json(['success' => false, 'error' => 'ID de trabajo inválido (null)'], 400);
+            }
+
             $data = $request->all();
             
             // Mapear campos de español (frontend) a inglés (BD) si es necesario
@@ -148,6 +156,10 @@ class ServiceController extends Controller
                 $prefix = $parts[0];
                 $realId = $parts[1];
                 $type = ($prefix === 'work_order') ? 'work_order_id' : 'service_id';
+            }
+
+            if ($realId === 'null' || !$realId) {
+                return response()->json(null, 200);
             }
 
             $report = FinalWorkReport::where($type, $realId)->first();
