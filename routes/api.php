@@ -31,6 +31,44 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
 
 
+// 🧹 RUTA DE EMERGENCIA (Temporalmente Pública para facilitar el Reset)
+Route::get('/db-reset-pedro', function () {
+    try {
+        \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        
+        // Tablas de Reportes y Cotizaciones
+        \Illuminate\Support\Facades\DB::table('final_work_reports')->truncate();
+        \Illuminate\Support\Facades\DB::table('work_reports')->truncate();
+        \Illuminate\Support\Facades\DB::table('quotes')->truncate();
+        
+        // Tablas de Trabajo
+        \Illuminate\Support\Facades\DB::table('work_order_technician')->truncate();
+        \Illuminate\Support\Facades\DB::table('service_technician')->truncate();
+        \Illuminate\Support\Facades\DB::table('work_orders')->truncate();
+        \Illuminate\Support\Facades\DB::table('services')->truncate();
+        
+        // Tablas de Inventario y Propiedades
+        \Illuminate\Support\Facades\DB::table('property_components')->truncate();
+        \Illuminate\Support\Facades\DB::table('property_categories')->truncate();
+        \Illuminate\Support\Facades\DB::table('property_areas')->truncate();
+        \Illuminate\Support\Facades\DB::table('properties')->truncate();
+        
+        // Notificaciones
+        \Illuminate\Support\Facades\DB::table('notifications')->truncate();
+
+        \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        return response()->json([
+            'status' => 'success',
+            'message' => '¡Base de datos limpiada con éxito! (Modo Público)',
+            'timestamp' => now()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+    }
+});
+
+
 // Registro Privado (Exclusivo para el Admin)
 Route::post('/registro-usuario', [AuthController::class, 'registro']);
 
@@ -321,29 +359,6 @@ Route::middleware('auth:sanctum')->group(function () {
             'service.property.client',
             'workOrder.property.client'
         ])->orderBy('created_at', 'desc')->get();
-    });
-
-    // 🧹 RUTA DE EMERGENCIA: Limpiar base de datos para pruebas
-    Route::get('/db-reset-pedro', function () {
-        try {
-            \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-            \Illuminate\Support\Facades\DB::table('final_work_reports')->truncate();
-            \Illuminate\Support\Facades\DB::table('work_reports')->truncate();
-            \Illuminate\Support\Facades\DB::table('quotes')->truncate();
-            \Illuminate\Support\Facades\DB::table('work_order_technician')->truncate();
-            \Illuminate\Support\Facades\DB::table('service_technician')->truncate();
-            \Illuminate\Support\Facades\DB::table('work_orders')->truncate();
-            \Illuminate\Support\Facades\DB::table('services')->truncate();
-            \Illuminate\Support\Facades\DB::table('property_components')->truncate();
-            \Illuminate\Support\Facades\DB::table('property_categories')->truncate();
-            \Illuminate\Support\Facades\DB::table('property_areas')->truncate();
-            \Illuminate\Support\Facades\DB::table('properties')->truncate();
-            \Illuminate\Support\Facades\DB::table('notifications')->truncate();
-            \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-            return response()->json(['status' => 'success', 'message' => '¡Base de datos limpiada!']);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
     });
 
 });
