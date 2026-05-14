@@ -159,25 +159,11 @@ class PropertyController extends Controller
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                     ->exists();
 
-                // Buscamos el levantamiento técnico EXCLUSIVAMENTE para esta propiedad
+                // Buscamos el reporte técnico (Cualquier servicio vinculado a esta propiedad)
                 $levantamiento = DB::table('services')
                     ->where('property_id', $p->id)
-                    ->where(function($q) {
-                        $q->where('title', 'like', '%Levantamiento%')
-                          ->orWhere('title', 'like', '%Inventario%')
-                          ->orWhere('title', 'like', '%Registro%')
-                          ->orWhere('title', 'like', '%Inicial%');
-                    })
-                    ->orderBy('id', 'desc')
+                    ->orderBy('id', 'desc') // El más reciente
                     ->first();
-
-                // Fallback total
-                if (!$levantamiento) {
-                    $levantamiento = DB::table('services')
-                        ->where('property_id', $p->id)
-                        ->orderBy('id', 'desc')
-                        ->first();
-                }
 
                 return [
                     'id' => $p->id,
@@ -312,25 +298,11 @@ class PropertyController extends Controller
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
 
-            // Buscamos el levantamiento técnico EXCLUSIVAMENTE para esta propiedad
+            // Buscamos el reporte técnico (Cualquier servicio vinculado a esta propiedad)
             $levantamiento = DB::table('services')
-                ->where('property_id', $id) // Filtro estricto por ID de la propiedad actual
-                ->where(function($q) {
-                    $q->where('title', 'like', '%Levantamiento%')
-                      ->orWhere('title', 'like', '%Inventario%')
-                      ->orWhere('title', 'like', '%Registro%')
-                      ->orWhere('title', 'like', '%Inicial%');
-                })
-                ->orderBy('id', 'desc') // El más reciente siempre primero
+                ->where('property_id', $id)
+                ->orderBy('id', 'desc')
                 ->first();
-
-            // Fallback: Si no hay levantamiento con ese nombre, tomamos el último servicio de ESA propiedad
-            if (!$levantamiento) {
-                $levantamiento = DB::table('services')
-                    ->where('property_id', $id) // Mantenemos el filtro de propiedad aquí también
-                    ->orderBy('id', 'desc')
-                    ->first();
-            }
 
             return response()->json([
                 'propiedad' => $propiedad,
@@ -376,6 +348,39 @@ class PropertyController extends Controller
 
             return response()->json(['success' => true, 'id' => $id], 201);
 
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function finalizeSurvey($id)
+    {
+        try {
+            $propiedad = Property::findOrFail($id);
+            $propiedad->levantamiento_realizado = true;
+            $propiedad->save();
+
+            // CREAR EL SERVICIO TÉCNICO DE LEVANTAMIENTO (Si no existe)
+            // Esto permite que el cliente vea su reporte de inmediato
+            $existeServicio = DB::table('services')
+                ->where('property_id', $id)
+                ->where('title', 'like', '%Levantamiento%')
+                ->exists();
+
+            if (!$existeServicio) {
+                DB::table('services')->insert([
+                    'property_id' => $id,
+                    'title' => 'Levantamiento Inicial (Cliente)',
+                    'description' => 'Levantamiento técnico registrado directamente por el cliente.',
+                    'status' => 'completed',
+                    'priority' => 'Baja',
+                    'scheduled_start' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Levantamiento finalizado y servicio creado.']);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
@@ -639,6 +644,7 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
     public function getGlobalServiceStats()
     {
         try {
@@ -691,23 +697,42 @@ class PropertyController extends Controller
     public function finalizeSurvey($id)
     {
         try {
-            $user = auth('sanctum')->user();
-            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+            $propiedad = Property::findOrFail($id);
+            $propiedad->levantamiento_realizado = true;
+            $propiedad->save();
 
-            $property = Property::findOrFail($id);
-            
-            // Opcional: Marcar que el levantamiento está realizado
-            $property->update(['levantamiento_realizado' => true]);
+            // CREAR EL SERVICIO TÉCNICO DE LEVANTAMIENTO (Si no existe)
+            // Esto permite que el cliente vea su reporte de inmediato
+            $existeServicio = DB::table('services')
+                ->where('property_id', $id)
+                ->where('title', 'like', '%Levantamiento%')
+                ->exists();
 
-            // NOTIFICAR A LOS ADMINS
-            $admins = \App\Models\User::where('role_id', 1)->get();
-            $notification = new \App\Notifications\ClientSurveyCompletedNotification($property);
-            
-            foreach ($admins as $admin) {
-                $admin->notify($notification);
+            if (!$existeServicio) {
+                DB::table('services')->insert([
+                    'property_id' => $id,
+                    'title' => 'Levantamiento Inicial (Cliente)',
+                    'description' => 'Levantamiento técnico registrado directamente por el cliente.',
+                    'status' => 'completed',
+                    'priority' => 'Baja',
+                    'scheduled_start' => now(),
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
             }
 
-            return response()->json(['success' => true, 'message' => 'Notificación enviada al administrador']);
+            // NOTIFICAR A LOS ADMINS (Opcional)
+            try {
+                $admins = \App\Models\User::where('role_id', 1)->get();
+                $notification = new \App\Notifications\ClientSurveyCompletedNotification($propiedad);
+                foreach ($admins as $admin) {
+                    $admin->notify($notification);
+                }
+            } catch (\Exception $e) {
+                // Si falla la notificación no bloqueamos el proceso
+            }
+
+            return response()->json(['success' => true, 'message' => 'Levantamiento finalizado y servicio creado.']);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
