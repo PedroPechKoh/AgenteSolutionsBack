@@ -211,6 +211,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/areas/{id}/categories', [PropertyCategoryController::class, 'getByArea']);
     Route::post('/property-categories', [PropertyCategoryController::class, 'store']);
 
+    // --- CATEGORÍAS Y COMPONENTES (NIVEL 5) ---
     Route::get('/areas/{id}/components', [PropertyComponentController::class, 'getByArea']);
     Route::post('/property-components', [PropertyComponentController::class, 'store']);
     Route::delete('/property-components/{id}', [PropertyComponentController::class, 'destroy']);
@@ -320,6 +321,29 @@ Route::middleware('auth:sanctum')->group(function () {
             'service.property.client',
             'workOrder.property.client'
         ])->orderBy('created_at', 'desc')->get();
+    });
+
+    // 🧹 RUTA DE EMERGENCIA: Limpiar base de datos para pruebas
+    Route::get('/db-reset-pedro', function () {
+        try {
+            \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+            \Illuminate\Support\Facades\DB::table('final_work_reports')->truncate();
+            \Illuminate\Support\Facades\DB::table('work_reports')->truncate();
+            \Illuminate\Support\Facades\DB::table('quotes')->truncate();
+            \Illuminate\Support\Facades\DB::table('work_order_technician')->truncate();
+            \Illuminate\Support\Facades\DB::table('service_technician')->truncate();
+            \Illuminate\Support\Facades\DB::table('work_orders')->truncate();
+            \Illuminate\Support\Facades\DB::table('services')->truncate();
+            \Illuminate\Support\Facades\DB::table('property_components')->truncate();
+            \Illuminate\Support\Facades\DB::table('property_categories')->truncate();
+            \Illuminate\Support\Facades\DB::table('property_areas')->truncate();
+            \Illuminate\Support\Facades\DB::table('properties')->truncate();
+            \Illuminate\Support\Facades\DB::table('notifications')->truncate();
+            \Illuminate\Support\Facades\DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+            return response()->json(['status' => 'success', 'message' => '¡Base de datos limpiada!']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     });
 
 });
