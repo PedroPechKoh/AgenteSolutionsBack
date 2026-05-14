@@ -169,6 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/propiedades/{id}/update', [PropertyController::class, 'updateProperty']);
     Route::get('/properties/by-curp/{curp}', [PropertyController::class, 'getByCurp']);
+    Route::post('/properties/{id}/finalize-survey', [PropertyController::class, 'finalizeSurvey']);
 
     Route::get('/map', function () {
         $propiedades = \Illuminate\Support\Facades\DB::table('properties')

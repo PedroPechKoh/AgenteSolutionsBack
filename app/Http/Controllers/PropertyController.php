@@ -651,4 +651,29 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    public function finalizeSurvey($id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            $property = Property::findOrFail($id);
+            
+            // Opcional: Marcar que el levantamiento está realizado
+            $property->update(['levantamiento_realizado' => true]);
+
+            // NOTIFICAR A LOS ADMINS
+            $admins = \App\Models\User::where('role_id', 1)->get();
+            $notification = new \App\Notifications\ClientSurveyCompletedNotification($property);
+            
+            foreach ($admins as $admin) {
+                $admin->notify($notification);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Notificación enviada al administrador']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
