@@ -159,10 +159,25 @@ class PropertyController extends Controller
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
                     ->exists();
 
+                // Buscamos el levantamiento técnico (Servicio de tipo Levantamiento Inicial)
                 $levantamiento = DB::table('services')
                     ->where('property_id', $p->id)
-                    ->where('title', 'Levantamiento Inicial')
+                    ->where(function($q) {
+                        $q->where('title', 'like', '%Levantamiento Inicial%')
+                          ->orWhere('title', 'like', '%Levantamiento de%')
+                          ->orWhere('title', 'like', '%Registro Inicial%');
+                    })
+                    ->orderByDesc('id')
                     ->first();
+
+                // Si no se encuentra por título, pero el flag de la propiedad está activo, 
+                // tomamos el primer servicio registrado como fallback
+                if (!$levantamiento && $p->levantamiento_realizado) {
+                    $levantamiento = DB::table('services')
+                        ->where('property_id', $p->id)
+                        ->orderBy('created_at', 'asc')
+                        ->first();
+                }
 
                 return [
                     'id' => $p->id,
@@ -179,7 +194,7 @@ class PropertyController extends Controller
                     'created_at' => $p->created_at,
                     'has_pending_service' => $tienePendiente,
                     'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
-                    'levantamiento_realizado' => $levantamiento ? true : false,
+                    'levantamiento_realizado' => ($p->levantamiento_realizado || $levantamiento) ? true : false,
                 ];
             });
 
@@ -297,8 +312,28 @@ class PropertyController extends Controller
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
 
+            // Buscamos el levantamiento técnico para esta propiedad
+            $levantamiento = DB::table('services')
+                ->where('property_id', $id)
+                ->where(function($q) {
+                    $q->where('title', 'like', '%Levantamiento Inicial%')
+                      ->orWhere('title', 'like', '%Levantamiento de%')
+                      ->orWhere('title', 'like', '%Registro Inicial%');
+                })
+                ->orderByDesc('id')
+                ->first();
+
+            // Fallback si no se encontró por título pero sabemos que existe o hay servicios
+            if (!$levantamiento && ($propiedad->levantamiento_realizado || DB::table('services')->where('property_id', $id)->exists())) {
+                $levantamiento = DB::table('services')
+                    ->where('property_id', $id)
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+            }
+
             return response()->json([
                 'propiedad' => $propiedad,
+                'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
                 'stats' => [
                     'sos' => $sosCount,
                     'pendientes' => $stats['Por Hacer'] ?? 0,
