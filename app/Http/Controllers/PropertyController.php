@@ -91,8 +91,9 @@ class PropertyController extends Controller
         $muni_limpio = Str::ascii($request->municipio);
         $municipio_curp = strtoupper(substr($muni_limpio, 0, 3));
         $colonia = strtoupper(substr($request->colonia, 0, 3));
-        $calle_curp = strtoupper(str_replace(' ', '', $request->calle));
-        $numero_curp = strtoupper(str_replace(' ', '', $request->numero));
+        // Limpiamos calle y número de símbolos como # que rompen las URLs
+        $calle_curp = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $request->calle));
+        $numero_curp = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $request->numero));
         $random = strtoupper(Str::random(3));
         $custom_curp = "{$tipo}-{$estado_curp}-{$municipio_curp}-{$colonia}-{$calle_curp}-{$numero_curp}-{$random}";
 
