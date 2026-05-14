@@ -198,6 +198,8 @@ class QuoteController extends Controller
                                           'cliente_id' => $client->id ?? null,
                                           'cliente_user_id' => $client->user_id ?? null,
                                           'tecnico' => $tecnicoModel ? ($tecnicoModel->first_name . ' ' . $tecnicoModel->last_name) : 'Sin Técnico',
+                                          'tecnico_id' => $tecnicoModel->id ?? null,
+                                          'tecnico_user_id' => $tecnicoModel->user_id ?? null,
                                           'fecha' => $quote->created_at ? $quote->created_at->format('Y-m-d') : '---',
                                           'created_at' => $quote->created_at,
                                           'total' => $quote->estimated_amount ?? 0,
