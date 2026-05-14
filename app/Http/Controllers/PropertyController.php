@@ -353,39 +353,6 @@ class PropertyController extends Controller
         }
     }
 
-    public function finalizeSurvey($id)
-    {
-        try {
-            $propiedad = Property::findOrFail($id);
-            $propiedad->levantamiento_realizado = true;
-            $propiedad->save();
-
-            // CREAR EL SERVICIO TÉCNICO DE LEVANTAMIENTO (Si no existe)
-            // Esto permite que el cliente vea su reporte de inmediato
-            $existeServicio = DB::table('services')
-                ->where('property_id', $id)
-                ->where('title', 'like', '%Levantamiento%')
-                ->exists();
-
-            if (!$existeServicio) {
-                DB::table('services')->insert([
-                    'property_id' => $id,
-                    'title' => 'Levantamiento Inicial (Cliente)',
-                    'description' => 'Levantamiento técnico registrado directamente por el cliente.',
-                    'status' => 'completed',
-                    'priority' => 'Baja',
-                    'scheduled_start' => now(),
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-            }
-
-            return response()->json(['success' => true, 'message' => 'Levantamiento finalizado y servicio creado.']);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
     // ---------------------------------------------------
     // 6. OBTENER ÓRDENES DE TRABAJO
     // ---------------------------------------------------
