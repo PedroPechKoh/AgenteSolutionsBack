@@ -764,8 +764,16 @@ class PropertyController extends Controller
     {
         if (!$propertyId) return [];
 
-        $areas = DB::table('property_areas')
-            ->where('property_id', $propertyId)
+        $areas = DB::table('property_areas as a')
+            ->where('a.property_id', $propertyId)
+            ->where(function($q) {
+                $q->whereNull('a.parent_id')
+                  ->orWhereExists(function($sub) {
+                      $sub->select(DB::raw(1))
+                          ->from('property_areas as p')
+                          ->whereColumn('p.id', 'a.parent_id');
+                  });
+            })
             ->get();
 
         if ($areas->isEmpty()) return [];
