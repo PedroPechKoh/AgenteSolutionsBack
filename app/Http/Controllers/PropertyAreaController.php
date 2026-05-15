@@ -153,9 +153,21 @@ class PropertyAreaController extends Controller
             $user = auth('sanctum')->user();
             if (!$user) return response()->json(['error' => 'No autorizado'], 401);
 
-            $area = PropertyArea::findOrFail($id);
+            $area = PropertyArea::with(['subAreas', 'components'])->findOrFail($id);
+            
+            // 1. Borrar equipos de esta zona
+            $area->components()->delete();
+            
+            // 2. Borrar sub-zonas y sus equipos
+            foreach ($area->subAreas as $sub) {
+                $sub->components()->delete();
+                $sub->delete();
+            }
+
+            // 3. Borrar la zona principal
             $area->delete();
-            return response()->json(['success' => true, 'message' => 'Área eliminada correctamente'], 200);
+
+            return response()->json(['success' => true, 'message' => 'Área y sus contenidos eliminados correctamente'], 200);
         } catch (\Exception $e) {
             Log::error("Error al eliminar área: " . $e->getMessage());
             return response()->json([

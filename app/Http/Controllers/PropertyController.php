@@ -165,9 +165,10 @@ class PropertyController extends Controller
                     ->orderBy('id', 'desc') // El más reciente
                     ->first();
 
-                // Buscamos si la propiedad ya tiene zonas/áreas registradas
+                // Buscamos si la propiedad ya tiene zonas principales (sin padre)
                 $tieneZonas = DB::table('property_areas')
                     ->where('property_id', $p->id)
+                    ->whereNull('parent_id')
                     ->exists();
 
                 // Un levantamiento está realizado SOLO SI tiene zonas registradas
