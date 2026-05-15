@@ -172,6 +172,8 @@ class PropertyController extends Controller
 
                 // Un levantamiento está realizado SOLO SI tiene zonas registradas
                 $realizado = $tieneZonas;
+                
+                \Log::info("Propiedad {$p->id} ({$p->property_name}): Zonas detectadas = " . ($tieneZonas ? 'SI' : 'NO'));
 
                 return [
                     'id' => $p->id,
