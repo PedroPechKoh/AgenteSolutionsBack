@@ -170,6 +170,9 @@ class PropertyController extends Controller
                     ->where('property_id', $p->id)
                     ->exists();
 
+                // Un levantamiento está realizado SOLO SI tiene zonas registradas
+                $realizado = $tieneZonas;
+
                 return [
                     'id' => $p->id,
                     'client_id' => $p->client_id,
@@ -185,7 +188,7 @@ class PropertyController extends Controller
                     'created_at' => $p->created_at,
                     'has_pending_service' => $tienePendiente,
                     'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
-                    'levantamiento_realizado' => ($p->levantamiento_realizado || $levantamiento || $tieneZonas) ? true : false,
+                    'levantamiento_realizado' => $realizado,
                 ];
             });
 
