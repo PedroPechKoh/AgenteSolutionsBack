@@ -715,4 +715,111 @@ class PropertyController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+
+    public function getPropertyReport($id)
+    {
+        try {
+            $property = Property::with('client')->find($id);
+            if (!$property) {
+                return response()->json(['error' => 'Propiedad no encontrada'], 404);
+            }
+
+            $client = $property->client;
+
+            // Reutilizamos la lógica de formateo (basada en ServiceController)
+            $secciones = $this->getFormattedSecciones($property->id);
+
+            return response()->json([
+                'id' => 'prop_' . $property->id,
+                'tipo_registro' => 'propiedad',
+                'titulo' => 'Levantamiento Inicial',
+                'estado' => 'Completado',
+                'prioridad' => 'Media',
+                'identificador_curp' => $property->custom_curp,
+                'propietario' => $client ? $client->name : 'Sin Propietario',
+                'telefono_cliente' => $client ? $client->phone : null,
+                'direccion' => $property->address,
+                'coordenadas' => $property->coordinates,
+                'tipoPropiedad' => strtoupper($property->type),
+                'propiedad_nombre' => $property->property_name,
+                'foto_fachada' => $property->facade_photo_path,
+                'cliente_email' => $client ? $client->email : null,
+                'tecnico' => 'Registro Manual',
+                'tecnico_email' => null,
+                'tecnico_celular' => null,
+                'technicians' => [],
+                'fecha_programada' => $property->updated_at->format('Y-m-d H:i:s'),
+                'descripcion' => 'Levantamiento realizado manualmente por el cliente o administración.',
+                'property_id' => $property->id,
+                'evidencias' => [],
+                'secciones' => $secciones
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al generar reporte: ' . $e->getMessage()], 500);
+        }
+    }
+
+    private function getFormattedSecciones($propertyId)
+    {
+        if (!$propertyId) return [];
+
+        $areas = DB::table('property_areas')
+            ->where('property_id', $propertyId)
+            ->get();
+
+        if ($areas->isEmpty()) return [];
+
+        return $areas->map(function ($area) {
+            $parent = null;
+            if ($area->parent_id) {
+                $parent = DB::table('property_areas')->where('id', $area->parent_id)->first();
+            }
+
+            $components = DB::table('property_components')
+                ->where('property_area_id', $area->id)
+                ->get();
+
+            $subSecciones = $components->groupBy('category')->map(function ($items, $catName) {
+                return [
+                    'nombre' => $catName ?: 'General',
+                    'inventario' => $items->map(function($item) {
+                        return [
+                            'id' => $item->id,
+                            'nombre' => $item->sub_category,
+                            'categoria' => $item->category,
+                            'marca' => $item->brand,
+                            'modelo' => $item->model_or_color,
+                            'estado' => $item->status,
+                            'cantidad' => $item->quantity,
+                            'observaciones' => $item->observations,
+                            'foto' => $item->image_path,
+                            'foto_secundaria' => $item->image_path_secondary,
+                            'serial_number' => $item->serial_number,
+                            'property_area_id' => $item->property_area_id,
+                            'sub_category' => $item->sub_category,
+                            'brand' => $item->brand,
+                            'model_or_color' => $item->model_or_color,
+                            'status' => $item->status,
+                            'quantity' => $item->quantity,
+                            'observations' => $item->observations,
+                            'image_path' => $item->image_path,
+                            'image_path_secondary' => $item->image_path_secondary,
+                            'galleries' => DB::table('component_galleries')
+                                ->where('property_component_id', $item->id)
+                                ->get()
+                        ];
+                    })->values()
+                ];
+            })->values();
+
+            return [
+                'id' => $area->id,
+                'titulo' => $area->name,
+                'foto' => $area->image_path,
+                'subSecciones' => $subSecciones,
+                'parent' => $parent
+            ];
+        });
+    }
 }
