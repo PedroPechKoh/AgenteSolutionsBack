@@ -165,6 +165,11 @@ class PropertyController extends Controller
                     ->orderBy('id', 'desc') // El más reciente
                     ->first();
 
+                // Buscamos si la propiedad ya tiene zonas/áreas registradas
+                $tieneZonas = DB::table('property_areas')
+                    ->where('property_id', $p->id)
+                    ->exists();
+
                 return [
                     'id' => $p->id,
                     'client_id' => $p->client_id,
@@ -180,7 +185,7 @@ class PropertyController extends Controller
                     'created_at' => $p->created_at,
                     'has_pending_service' => $tienePendiente,
                     'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
-                    'levantamiento_realizado' => ($p->levantamiento_realizado || $levantamiento) ? true : false,
+                    'levantamiento_realizado' => ($p->levantamiento_realizado || $levantamiento || $tieneZonas) ? true : false,
                 ];
             });
 
