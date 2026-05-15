@@ -690,7 +690,7 @@ class PropertyController extends Controller
 
             // NOTIFICAR A LOS ADMINS (Opcional)
             try {
-                $admins = \App\Models\User::where('role_id', 1)->get();
+                $admins = \App\Models\User::whereIn('role_id', [0, 1])->get();
                 $notification = new \App\Notifications\ClientSurveyCompletedNotification($propiedad);
                 foreach ($admins as $admin) {
                     $admin->notify($notification);

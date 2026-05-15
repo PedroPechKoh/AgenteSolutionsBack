@@ -767,8 +767,29 @@ class ServiceController extends Controller
 
             if ($request->has('status')) {
                 $servicio->status = $request->status;
-                if ($request->status === 'completed' || $request->status === 'Finalizado') {
+                if ($request->status === 'completed' || $request->status === 'Finalizado' || $request->status === 'Listo') {
                     $servicio->real_end = now();
+                    
+                    // Si el servicio es un levantamiento, marcamos la propiedad como realizada
+                    if (str_contains(strtolower($servicio->title), 'levantamiento')) {
+                        $propiedad = \App\Models\Property::find($servicio->property_id);
+                        if ($propiedad) {
+                            $propiedad->levantamiento_realizado = true;
+                            $propiedad->save();
+                            \Log::info("Propiedad {$propiedad->id} marcada como LEVANTAMIENTO REALIZADO por término de servicio.");
+                            
+                            // NOTIFICAR A LOS ADMINS
+                            try {
+                                $admins = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                                $notification = new \App\Notifications\ClientSurveyCompletedNotification($propiedad);
+                                foreach ($admins as $admin) {
+                                    $admin->notify($notification);
+                                }
+                            } catch (\Exception $e) {
+                                \Log::error("Error notificando término de levantamiento técnico: " . $e->getMessage());
+                            }
+                        }
+                    }
                 }
             }
             
