@@ -251,6 +251,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- CATEGORÍAS Y COMPONENTES (NIVEL 5) ---
     Route::get('/areas/{id}/categories', [PropertyCategoryController::class, 'getByArea']);
     Route::post('/property-categories', [PropertyCategoryController::class, 'store']);
+    Route::put('/property-categories/{id}', [PropertyCategoryController::class, 'update']);
+    Route::delete('/property-categories/{id}', [PropertyCategoryController::class, 'destroy']);
 
     // --- CATEGORÍAS Y COMPONENTES (NIVEL 5) ---
     Route::get('/areas/{id}/components', [PropertyComponentController::class, 'getByArea']);

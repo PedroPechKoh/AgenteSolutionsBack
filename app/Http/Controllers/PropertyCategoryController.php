@@ -47,4 +47,43 @@ class PropertyCategoryController extends Controller
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
+    public function update(Request $request, $id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            $request->validate([
+                'name' => 'required|string|max:100'
+            ]);
+
+            DB::table('property_maintenance_categories')
+                ->where('id', $id)
+                ->update([
+                    'name' => strtoupper($request->name),
+                    'updated_at' => now(),
+                ]);
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function destroy($id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado'], 401);
+
+            // Eliminar componentes asociados primero
+            DB::table('property_components')->where('property_category_id', $id)->delete();
+            
+            DB::table('property_maintenance_categories')->where('id', $id)->delete();
+
+            return response()->json(['success' => true]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
