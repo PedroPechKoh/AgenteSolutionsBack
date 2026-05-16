@@ -693,6 +693,7 @@ class PropertyController extends Controller
                     'description' => 'Levantamiento técnico registrado directamente por el cliente.',
                     'status' => 'completed',
                     'priority' => 'Baja',
+                    'supervisor_name' => 'N/A', // <-- SOLUCIÓN AL ERROR SQL
                     'scheduled_start' => now(),
                     'created_at' => now(),
                     'updated_at' => now(),
