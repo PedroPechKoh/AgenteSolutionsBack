@@ -57,6 +57,18 @@ class PropertyCategoryController extends Controller
                 'name' => 'required|string|max:100'
             ]);
 
+            $cat = DB::table('property_maintenance_categories')->where('id', $id)->first();
+            if ($cat) {
+                // Actualizamos los componentes para que reflejen el nuevo nombre de categoría
+                DB::table('property_components')
+                    ->where('property_area_id', $cat->property_area_id)
+                    ->where('category', $cat->name)
+                    ->update([
+                        'category' => strtoupper($request->name),
+                        'updated_at' => now(),
+                    ]);
+            }
+
             DB::table('property_maintenance_categories')
                 ->where('id', $id)
                 ->update([
@@ -76,8 +88,14 @@ class PropertyCategoryController extends Controller
             $user = auth('sanctum')->user();
             if (!$user) return response()->json(['error' => 'No autorizado'], 401);
 
-            // Eliminar componentes asociados primero
-            DB::table('property_components')->where('property_category_id', $id)->delete();
+            $cat = DB::table('property_maintenance_categories')->where('id', $id)->first();
+            if ($cat) {
+                // Eliminar componentes asociados usando el nombre y área
+                DB::table('property_components')
+                    ->where('property_area_id', $cat->property_area_id)
+                    ->where('category', $cat->name)
+                    ->delete();
+            }
             
             DB::table('property_maintenance_categories')->where('id', $id)->delete();
 
