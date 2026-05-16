@@ -22,7 +22,8 @@ class PropertyAreaController extends Controller
             $user = auth('sanctum')->user();
             if (!$user) return response()->json(['error' => 'No autorizado'], 401);
 
-            $areas = PropertyArea::where('property_id', $propertyId)
+            $areas = PropertyArea::with('subAreas')
+                ->where('property_id', $propertyId)
                 ->whereNull('parent_id')
                 ->orderBy('created_at', 'desc')
                 ->get();
