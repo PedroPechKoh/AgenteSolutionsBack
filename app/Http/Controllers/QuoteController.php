@@ -167,8 +167,10 @@ class QuoteController extends Controller
             $quotesQuery = Quote::with([
                 'service.property.client', 
                 'service.technician',
+                'service.technicians',
                 'workOrder.property.client',
-                'workOrder.tecnico'
+                'workOrder.tecnico',
+                'workOrder.technicians'
             ]);
 
             // Si es cliente (rol 3), filtrar por sus servicios o sus órdenes de trabajo
@@ -187,7 +189,7 @@ class QuoteController extends Controller
                                   ->map(function($quote) use ($user) {
                                       // Obtenemos el cliente y técnico de la relación que esté disponible
                                       $client = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
-                                      $tecnicoModel = $quote->service->technician ?? $quote->workOrder->tecnico ?? null;
+                                      $tecnicoModel = $quote->service->technician ?? $quote->workOrder->tecnico ?? ($quote->service->technicians->first() ?? $quote->workOrder->technicians->first() ?? null);
 
                                       return [
                                           'id' => $quote->id,
@@ -199,7 +201,7 @@ class QuoteController extends Controller
                                           'cliente_user_id' => $client->user_id ?? null,
                                           'tecnico' => $tecnicoModel ? ($tecnicoModel->first_name . ' ' . $tecnicoModel->last_name) : 'Sin Técnico',
                                           'tecnico_id' => $tecnicoModel->id ?? null,
-                                          'tecnico_user_id' => $tecnicoModel->user_id ?? null,
+                                          'tecnico_user_id' => $tecnicoModel->id ?? null,
                                           'fecha' => $quote->created_at ? $quote->created_at->format('Y-m-d') : '---',
                                           'created_at' => $quote->created_at,
                                           'total' => $quote->estimated_amount ?? 0,
