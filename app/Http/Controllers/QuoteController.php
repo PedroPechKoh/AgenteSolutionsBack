@@ -193,6 +193,7 @@ class QuoteController extends Controller
 
                                       return [
                                           'id' => $quote->id,
+                                          'property_id' => $quote->property_id ?? $quote->service->property_id ?? $quote->workOrder->property_id ?? null,
                                           'service_id' => $quote->service_id,
                                           'work_order_id' => $quote->work_order_id,
                                           'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),

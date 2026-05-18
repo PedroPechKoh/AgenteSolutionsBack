@@ -316,6 +316,7 @@ class ServiceController extends Controller
             $formateados = $servicios->map(function ($s) {
                 return [
                     'id' => $s->id,
+                    'property_id' => $s->property_id,
                     'title' => $s->title,
                     'priority' => $s->priority,
                     'status' => $s->status,
