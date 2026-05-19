@@ -560,14 +560,14 @@ class PropertyController extends Controller
 
             $survey = $areas->map(function ($area) {
                 // Obtener subáreas
-                $subareaIds = DB::table('property_areas')
+                $subareas = DB::table('property_areas')
                     ->where('parent_id', $area->id)
-                    ->pluck('id')
-                    ->toArray();
+                    ->get();
                 
+                $subareaIds = $subareas->pluck('id')->toArray();
                 $allAreaIds = array_merge([$area->id], $subareaIds);
 
-                // Obtener componentes
+                // Obtener componentes (para el agrupado global compatible)
                 $components = DB::table('property_components')
                     ->whereIn('property_area_id', $allAreaIds)
                     ->get()
@@ -599,7 +599,7 @@ class PropertyController extends Controller
                         ];
                     });
 
-                // Agrupar por categoría
+                // Agrupar por categoría (global para compatibilidad)
                 $groupedByCategory = [];
                 foreach ($components as $comp) {
                     $cat = $comp['categoria'] ?: 'General';
@@ -609,11 +609,116 @@ class PropertyController extends Controller
                     $groupedByCategory[$cat][] = $comp;
                 }
 
+                // --- NUEVO: Agrupar por Zonas/Subáreas ---
+                $subareasSurvey = [];
+
+                // 1. Componentes directos de la área principal (sin subárea específica)
+                $parentComponents = DB::table('property_components')
+                    ->where('property_area_id', $area->id)
+                    ->get()
+                    ->map(function($comp) {
+                        return [
+                            'id' => $comp->id,
+                            'nombre' => $comp->sub_category,
+                            'categoria' => $comp->category,
+                            'marca' => $comp->brand,
+                            'modelo' => $comp->model_or_color,
+                            'estado' => $comp->status,
+                            'cantidad' => $comp->quantity,
+                            'observaciones' => $comp->observations,
+                            'foto' => $comp->image_path,
+                            'foto_secundaria' => $comp->image_path_secondary,
+                            'serial_number' => $comp->serial_number,
+                            'property_area_id' => $comp->property_area_id,
+                            'sub_category' => $comp->sub_category,
+                            'brand' => $comp->brand,
+                            'model_or_color' => $comp->model_or_color,
+                            'status' => $comp->status,
+                            'quantity' => $comp->quantity,
+                            'observations' => $comp->observations,
+                            'image_path' => $comp->image_path,
+                            'image_path_secondary' => $comp->image_path_secondary,
+                            'galleries' => DB::table('component_galleries')
+                                ->where('property_component_id', $comp->id)
+                                ->get()
+                        ];
+                    });
+
+                if ($parentComponents->isNotEmpty()) {
+                    $parentGrouped = [];
+                    foreach ($parentComponents as $comp) {
+                        $cat = $comp['categoria'] ?: 'General';
+                        if (!isset($parentGrouped[$cat])) {
+                            $parentGrouped[$cat] = [];
+                        }
+                        $parentGrouped[$cat][] = $comp;
+                    }
+                    $subareasSurvey[] = [
+                        'id' => $area->id,
+                        'name' => 'General / ' . $area->name,
+                        'photo' => $area->image_path,
+                        'is_parent' => true,
+                        'categories' => $parentGrouped
+                    ];
+                }
+
+                // 2. Agregar componentes de cada una de las subáreas
+                foreach ($subareas as $sub) {
+                    $subComponents = DB::table('property_components')
+                        ->where('property_area_id', $sub->id)
+                        ->get()
+                        ->map(function($comp) {
+                            return [
+                                'id' => $comp->id,
+                                'nombre' => $comp->sub_category,
+                                'categoria' => $comp->category,
+                                'marca' => $comp->brand,
+                                'modelo' => $comp->model_or_color,
+                                'estado' => $comp->status,
+                                'cantidad' => $comp->quantity,
+                                'observaciones' => $comp->observations,
+                                'foto' => $comp->image_path,
+                                'foto_secundaria' => $comp->image_path_secondary,
+                                'serial_number' => $comp->serial_number,
+                                'property_area_id' => $comp->property_area_id,
+                                'sub_category' => $comp->sub_category,
+                                'brand' => $comp->brand,
+                                'model_or_color' => $comp->model_or_color,
+                                'status' => $comp->status,
+                                'quantity' => $comp->quantity,
+                                'observations' => $comp->observations,
+                                'image_path' => $comp->image_path,
+                                'image_path_secondary' => $comp->image_path_secondary,
+                                'galleries' => DB::table('component_galleries')
+                                    ->where('property_component_id', $comp->id)
+                                    ->get()
+                            ];
+                        });
+
+                    $subGrouped = [];
+                    foreach ($subComponents as $comp) {
+                        $cat = $comp['categoria'] ?: 'General';
+                        if (!isset($subGrouped[$cat])) {
+                            $subGrouped[$cat] = [];
+                        }
+                        $subGrouped[$cat][] = $comp;
+                    }
+
+                    $subareasSurvey[] = [
+                        'id' => $sub->id,
+                        'name' => $sub->name,
+                        'photo' => $sub->image_path,
+                        'is_parent' => false,
+                        'categories' => $subGrouped
+                    ];
+                }
+
                 return [
                     'id' => $area->id,
                     'name' => $area->name,
                     'photo' => $area->image_path,
-                    'categories' => $groupedByCategory
+                    'categories' => $groupedByCategory,
+                    'subareas' => $subareasSurvey
                 ];
             });
 
