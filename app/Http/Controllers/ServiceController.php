@@ -534,7 +534,8 @@ class ServiceController extends Controller
                     'custom_checklist' => $model->custom_checklist,
                     'property_id' => $model->property_id,
                     'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2])),
-                    'secciones' => $secciones
+                    'secciones' => $secciones,
+                    'zone' => $model->zone
                 ], 200);
             } else {
                 return response()->json([
@@ -560,7 +561,8 @@ class ServiceController extends Controller
                     'descripcion' => $model->description,
                     'property_id' => $model->property_id,
                     'evidencias' => [],
-                    'secciones' => $secciones
+                    'secciones' => $secciones,
+                    'zone' => $model->area ? $model->area->name : 'General'
                 ], 200);
             }
 
