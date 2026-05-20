@@ -15,10 +15,11 @@ class AppSettingController extends Controller
         ]);
 
         if ($request->hasFile('background_image')) {
-            $file = $request->file('background_image');
-            $filename = 'login_bg_' . time() . '.' . $file->getClientOriginalExtension();
-            $path = $file->storeAs('backgrounds', $filename, 'public');
-            $imageUrl = asset('storage/' . $path);
+            $cloudinary = new \Cloudinary\Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('background_image')->getRealPath(), [
+                'folder' => 'login_backgrounds'
+            ]);
+            $imageUrl = $respuestaNube['secure_url'];
 
             $setting = AppSetting::updateOrCreate(
                 ['setting_key' => 'login_background_image'], 
