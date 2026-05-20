@@ -42,6 +42,14 @@ class QuoteController extends Controller
                 $quote->validity_days = $request->validity_days ?? 15;
                 $quote->observations = $request->observations;
                 $quote->internal_observations = $request->internal_observations;
+                
+                if ($request->hasFile('evidence_photo')) {
+                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('evidence_photo')->getRealPath(), [
+                        'folder' => 'cotizaciones_evidence'
+                    ]);
+                    $quote->evidence_photo_path = $respuestaNube['secure_url'];
+                }
             }
             // Si es archivo, subimos el documento
             else {
@@ -125,6 +133,14 @@ class QuoteController extends Controller
                 
                 if ($request->internal_observations) {
                     $quote->internal_observations = ($quote->internal_observations ? $quote->internal_observations . "\n\n" : "") . $request->internal_observations;
+                }
+
+                if ($request->hasFile('evidence_photo')) {
+                    $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                    $respuestaNube = $cloudinary->uploadApi()->upload($request->file('evidence_photo')->getRealPath(), [
+                        'folder' => 'cotizaciones_evidence'
+                    ]);
+                    $quote->evidence_photo_path = $respuestaNube['secure_url'];
                 }
             } else {
                 if ($request->hasFile('file')) {
@@ -213,7 +229,8 @@ class QuoteController extends Controller
                                           'internal_observations' => ($user && $user->role_id !== 3) ? ($quote->internal_observations ?? null) : null,
                                           'created_by_role' => $quote->created_by_role ?? 'Admin',
                                           'parent_id' => $quote->parent_id ?? null,
-                                          'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null
+                                          'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null,
+                                          'evidence_photo_path' => $quote->evidence_photo_path
                                       ];
                                   });
 
