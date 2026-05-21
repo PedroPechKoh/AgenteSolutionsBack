@@ -204,12 +204,12 @@ class QuoteController extends Controller
                                   ->get()
                                   ->map(function($quote) use ($user) {
                                       // Obtenemos el cliente y técnico de la relación que esté disponible
-                                      $client = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
-                                      $tecnicoModel = $quote->service->technician ?? $quote->workOrder->tecnico ?? ($quote->service->technicians->first() ?? $quote->workOrder->technicians->first() ?? null);
+                                      $client = $quote->service?->property?->client ?? $quote->workOrder?->property?->client ?? null;
+                                      $tecnicoModel = $quote->service?->technician ?? $quote->workOrder?->tecnico ?? ($quote->service?->technicians?->first() ?? $quote->workOrder?->technicians?->first() ?? null);
 
                                       return [
                                           'id' => $quote->id,
-                                          'property_id' => $quote->property_id ?? $quote->service->property_id ?? $quote->workOrder->property_id ?? null,
+                                          'property_id' => $quote->property_id ?? $quote->service?->property_id ?? $quote->workOrder?->property_id ?? null,
                                           'service_id' => $quote->service_id,
                                           'work_order_id' => $quote->work_order_id,
                                           'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),
