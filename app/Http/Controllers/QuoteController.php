@@ -110,16 +110,32 @@ class QuoteController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            $quote = Quote::findOrFail($id);
-            
-            // Si el usuario es técnico (rol 2), el estado vuelve a "Pendiente de Admin"
-            // Si es Admin, puede enviarla directo a "Pendiente" (para el cliente)
+            $originalQuote = Quote::findOrFail($id);
             $user = auth()->user();
-            if ($user && $user->role_id === 2) {
-                $quote->status = 'Pendiente de Admin';
+            $isAdmin = $user && in_array($user->role_id, [0, 1]);
+
+            // Si es un Admin editando la cotización de un técnico (y la original no es ya un borrador),
+            // creamos una nueva cotización y vinculamos la original como 'Borrador Técnico'.
+            if ($isAdmin && $originalQuote->created_by_role === 'Técnico' && $originalQuote->status !== 'Borrador Técnico') {
+                $quote = new Quote();
+                $quote->parent_id = $originalQuote->id;
+                $quote->service_id = $originalQuote->service_id;
+                $quote->work_order_id = $originalQuote->work_order_id;
+                $quote->created_by_role = 'Admin';
+                $quote->status = 'Pendiente'; // Lista para el cliente
+
+                $originalQuote->status = 'Borrador Técnico';
+                $originalQuote->save();
             } else {
-                $quote->status = 'Pendiente';
+                $quote = $originalQuote;
+                if ($user && $user->role_id === 2) {
+                    $quote->status = 'Pendiente de Admin';
+                } else {
+                    $quote->status = 'Pendiente';
+                }
             }
+
+            $quote->type = $request->type;
 
             if ($request->type === 'manual') {
                 $quote->concept = is_string($request->concept) ? json_decode($request->concept, true) : $request->concept;
