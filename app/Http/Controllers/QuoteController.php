@@ -230,7 +230,8 @@ class QuoteController extends Controller
                                           'created_by_role' => $quote->created_by_role ?? 'Admin',
                                           'parent_id' => $quote->parent_id ?? null,
                                           'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null,
-                                          'evidence_photo_path' => $quote->evidence_photo_path
+                                          'evidence_photo_path' => $quote->evidence_photo_path,
+                                          'chat_history' => $quote->chat_history,
                                       ];
                                   });
 
@@ -353,6 +354,35 @@ public function finalizarCotizacion(Request $request, $id)
                 'archivo' => $e->getFile(),
                 'linea' => $e->getLine()
             ], 500);
+        }
+    }
+    public function addMessage(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'message' => 'required|string',
+            ]);
+
+            $quote = Quote::findOrFail($id);
+            $user = auth()->user();
+
+            $newMessage = [
+                'sender_id' => $user->id,
+                'sender_name' => $user->name ?? $user->first_name . ' ' . $user->last_name,
+                'sender_role' => $user->role_id == 3 ? 'Cliente' : ($user->role_id == 2 ? 'Técnico' : 'Admin'),
+                'message' => $request->message,
+                'created_at' => now()->toIso8601String(),
+            ];
+
+            $history = $quote->chat_history ?? [];
+            $history[] = $newMessage;
+            
+            $quote->chat_history = $history;
+            $quote->save();
+
+            return response()->json(['message' => 'Mensaje enviado', 'chat_history' => $history], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al enviar mensaje: ' . $e->getMessage()], 500);
         }
     }
 }

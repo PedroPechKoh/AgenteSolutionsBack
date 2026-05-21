@@ -10,6 +10,7 @@ class Quote extends Model
 
     protected $casts = [
         'concept' => 'array',
+        'chat_history' => 'array',
     ];
 
     public function service()
