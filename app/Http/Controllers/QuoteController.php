@@ -387,14 +387,15 @@ public function finalizarCotizacion(Request $request, $id)
             if ($user->role_id == 3) {
                 // Si lo mandó el Cliente, notificamos a los Admins
                 $admins = User::whereIn('role_id', [0, 1])->get();
-                \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\NewQuoteMessageNotification($quote, $senderNameStr));
+                \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\NewQuoteMessageNotification($quote, $senderNameStr, 'Cliente'));
             } else {
                 // Si lo mandó Admin o Técnico, notificamos al Cliente
+                $roleStr = $user->role_id == 2 ? 'Técnico' : 'Admin';
                 $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
                 if ($cliente && $cliente->user_id) {
                     $clienteUser = User::find($cliente->user_id);
                     if ($clienteUser) {
-                        \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteMessageNotification($quote, $senderNameStr));
+                        \Illuminate\Support\Facades\Notification::send($clienteUser, new \App\Notifications\NewQuoteMessageNotification($quote, $senderNameStr, $roleStr));
                     }
                 }
             }
