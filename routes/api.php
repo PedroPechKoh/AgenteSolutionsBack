@@ -352,9 +352,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ], 201);
     });
 
-    // Nuevo: Obtener todas las órdenes de trabajo para el admin
     Route::get('/work-orders/all', function () {
-        return \App\Models\WorkOrder::with(['property', 'tecnico'])->orderBy('created_at', 'desc')->get();
+        return \App\Models\WorkOrder::with(['property.client', 'tecnico'])->orderBy('created_at', 'desc')->get();
     });
 
     // Nuevo: Obtener todos los reportes globales (Galería Global de Administradores)
