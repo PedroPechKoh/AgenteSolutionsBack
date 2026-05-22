@@ -120,6 +120,11 @@ Route::get('/limpiar-cache', function () {
     return response()->json(['message' => '¡Memoria de Railway reseteada con éxito!']);
 });
 
+Route::get('/run-migrations-pago', function () {
+    \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+    return "Migraciones ejecutadas exitosamente!";
+});
+
 
 // ========================================================
 // 🔴 ZONA SEGURA (Solo entras si traes el Token de Sanctum)
@@ -289,10 +294,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cotizaciones/{id}/pago', [QuoteController::class, 'uploadPaymentReceipt']);
     Route::post('/cotizaciones/{id}/validar-pago', [QuoteController::class, 'validatePayment']);
 
-    Route::get('/run-migrations-pago', function () {
-        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
-        return "Migraciones ejecutadas exitosamente!";
-    });
+
 
     //Solicitar servicios
     Route::post('/work-orders/cliente', function (Request $request) {
