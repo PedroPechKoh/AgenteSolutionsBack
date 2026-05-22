@@ -126,6 +126,10 @@ Route::get('/run-migrations-pago', function () {
 });
 
 
+Route::get('/debug-quote-21', function () {
+    return \App\Models\Quote::find(21);
+});
+
 // ========================================================
 // 🔴 ZONA SEGURA (Solo entras si traes el Token de Sanctum)
 // ========================================================
