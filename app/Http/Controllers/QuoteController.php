@@ -428,11 +428,17 @@ public function finalizarCotizacion(Request $request, $id)
     {
         try {
             $request->validate([
-                'payment_receipt_path' => 'required|string'
+                'receipt_file' => 'required|file|mimes:jpeg,png,jpg,pdf|max:10240'
             ]);
 
             $quote = Quote::findOrFail($id);
-            $quote->payment_receipt_path = $request->payment_receipt_path;
+
+            // Subir a Cloudinary desde el backend
+            $fileUrl = Cloudinary::upload($request->file('receipt_file')->getRealPath(), [
+                'folder' => 'comprobantes_pago'
+            ])->getSecurePath();
+
+            $quote->payment_receipt_path = $fileUrl;
             $quote->payment_status = 'Pago en Revisión';
             $quote->status = 'Pago en Revisión';
             $quote->save();
