@@ -9,6 +9,7 @@ use App\Models\Service; // Asegúrate de importar el modelo Service
 use App\Models\WorkOrder;
 use App\Notifications\QuoteStatusUpdated;
 use App\Notifications\QuotePaymentReceived;
+use App\Notifications\QuotePaymentValidated;
 
 class QuoteController extends Controller
 {
@@ -478,6 +479,16 @@ public function finalizarCotizacion(Request $request, $id)
                 if ($workOrder && $workOrder->status === 'Pendiente') {
                     $workOrder->status = 'Asignado'; // O algo equivalente según el flujo de work orders
                     $workOrder->save();
+                }
+            }
+
+            // Notificar al cliente
+            $quote->load(['service.property.client', 'workOrder.property.client']);
+            $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
+            if ($cliente && $cliente->user_id) {
+                $clienteUser = User::find($cliente->user_id);
+                if ($clienteUser) {
+                    $clienteUser->notify(new QuotePaymentValidated($quote));
                 }
             }
 
