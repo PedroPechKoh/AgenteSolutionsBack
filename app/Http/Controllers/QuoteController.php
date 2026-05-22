@@ -249,6 +249,8 @@ class QuoteController extends Controller
                                           'parent_id' => $quote->parent_id ?? null,
                                           'archivo_url' => $quote->file_path ? (str_starts_with($quote->file_path, 'http') ? $quote->file_path : asset('storage/' . $quote->file_path)) : null,
                                           'evidence_photo_path' => $quote->evidence_photo_path,
+                                          'payment_receipt_path' => $quote->payment_receipt_path,
+                                          'payment_status' => $quote->payment_status,
                                           'chat_history' => $quote->chat_history,
                                       ];
                                   });
