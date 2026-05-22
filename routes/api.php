@@ -284,6 +284,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cotizaciones/{id}/observaciones', [QuoteController::class, 'updateObservations']);
     //Finalizar Cotización
     Route::post('/cotizaciones/{id}/finalizar', [QuoteController::class, 'finalizarCotizacion']);
+    
+    // Pagos de Cotizaciones
+    Route::post('/cotizaciones/{id}/pago', [QuoteController::class, 'uploadPaymentReceipt']);
+    Route::post('/cotizaciones/{id}/validar-pago', [QuoteController::class, 'validatePayment']);
 
     //Solicitar servicios
     Route::post('/work-orders/cliente', function (Request $request) {

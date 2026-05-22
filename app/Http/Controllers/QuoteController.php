@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Quote;
 use App\Models\User;
 use App\Models\Service; // Asegúrate de importar el modelo Service
+use App\Models\WorkOrder;
 use App\Notifications\QuoteStatusUpdated;
+use App\Notifications\QuotePaymentReceived;
 
 class QuoteController extends Controller
 {
@@ -277,7 +279,7 @@ class QuoteController extends Controller
                 $service = Service::find($quote->service_id);
                 if ($service) {
                     $service->update([
-                        'status' => 'Programado', // Cambia el estado del servicio
+                        'status' => 'Pendiente de Pago', // El servicio espera pago
                         'quote_approved' => true   // Marcamos que tiene cotización aceptada
                     ]);
                 }
@@ -419,6 +421,59 @@ public function finalizarCotizacion(Request $request, $id)
             return response()->json(['message' => 'Mensaje enviado', 'chat_history' => $history], 200);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Error al enviar mensaje: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function uploadPaymentReceipt(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'payment_receipt_path' => 'required|string'
+            ]);
+
+            $quote = Quote::findOrFail($id);
+            $quote->payment_receipt_path = $request->payment_receipt_path;
+            $quote->payment_status = 'Pago en Revisión';
+            $quote->status = 'Pago en Revisión';
+            $quote->save();
+
+            // Notificar a los administradores
+            $admins = \App\Models\User::whereIn('role_id', [0, 1])->get();
+            \Illuminate\Support\Facades\Notification::send($admins, new QuotePaymentReceived($quote));
+
+            return response()->json(['message' => 'Comprobante recibido exitosamente.', 'quote' => $quote]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al guardar el comprobante: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function validatePayment(Request $request, $id)
+    {
+        try {
+            $quote = Quote::findOrFail($id);
+            $quote->payment_status = 'Validado';
+            $quote->status = 'Pagado';
+            $quote->save();
+
+            // Activar el servicio ligado a Programado
+            $service = Service::find($quote->service_id);
+            if ($service) {
+                $service->update([
+                    'status' => 'Programado',
+                    'scheduled_at' => now(), // o usar otro si aplica
+                ]);
+
+                // Si tiene work_order, pasarlo a En Proceso o Listo para Asignar
+                $workOrder = WorkOrder::where('service_id', $service->id)->first();
+                if ($workOrder && $workOrder->status === 'Pendiente') {
+                    $workOrder->status = 'Asignado'; // O algo equivalente según el flujo de work orders
+                    $workOrder->save();
+                }
+            }
+
+            return response()->json(['message' => 'Pago validado y servicio activado.', 'quote' => $quote]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al validar el pago: ' . $e->getMessage()], 500);
         }
     }
 }
