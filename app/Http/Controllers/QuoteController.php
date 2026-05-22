@@ -433,10 +433,12 @@ public function finalizarCotizacion(Request $request, $id)
 
             $quote = Quote::findOrFail($id);
 
-            // Subir a Cloudinary desde el backend
-            $fileUrl = Cloudinary::upload($request->file('receipt_file')->getRealPath(), [
+            // Subir a Cloudinary desde el backend usando la "Opción Nuclear"
+            $cloudinary = new \Cloudinary\Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('receipt_file')->getRealPath(), [
                 'folder' => 'comprobantes_pago'
-            ])->getSecurePath();
+            ]);
+            $fileUrl = $respuestaNube['secure_url'];
 
             $quote->payment_receipt_path = $fileUrl;
             $quote->payment_status = 'Pago en Revisión';
