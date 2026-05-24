@@ -31,10 +31,11 @@ class WorkOrderScheduledNotification extends Notification
         $fecha = Carbon::parse($this->workOrder->scheduled_at)->format('d/m/Y H:i');
         return [
             'work_order_id' => $this->workOrder->id,
+            'property_id' => $this->workOrder->property_id,
             'alert_type' => 'work_order_scheduled',
             'title' => 'Visita de Técnico Programada',
             'message' => "El técnico {$this->tecnicoName} te visitará el {$fecha} por el problema en la propiedad {$this->propertyName}.",
-            'url' => "/tablero-cliente"
+            'url' => "/propiedad/{$this->workOrder->property_id}/tablero"
         ];
     }
 }

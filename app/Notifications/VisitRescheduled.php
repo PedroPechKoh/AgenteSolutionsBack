@@ -27,10 +27,11 @@ class VisitRescheduled extends Notification
 
         return [
             'service_id' => $this->service->id,
+            'property_id' => $this->service->property_id,
             'alert_type' => 'visit_rescheduled',
             'title' => '¡Nueva fecha de visita!',
             'message' => "El administrador ha programado tu levantamiento #{$this->service->id} para el: {$fechaBonita}.",
-            'url' => "/levantamientos" 
+            'url' => "/propiedad/{$this->service->property_id}/tablero" 
         ];
     }
 }
