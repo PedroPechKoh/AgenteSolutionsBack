@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\WorkOrderAssigned;
 use App\Notifications\WorkOrderRescheduledTechnician;
 use Illuminate\Support\Facades\Notification;
+use App\Notifications\WorkOrderCancelledNotification;
 // Importamos la API pura de Cloudinary (La Opción Nuclear)
 use Cloudinary\Cloudinary;
 
@@ -392,7 +393,7 @@ class PropertyController extends Controller
     {
         try {
             $request->validate([
-                'status' => 'required|in:Por Hacer,En Proceso,Listo'
+                'status' => 'required|in:Por Hacer,En Proceso,Listo,Rechazado,Cancelado'
             ]);
 
             $workOrder = WorkOrder::with('property')->findOrFail($id);
@@ -401,6 +402,40 @@ class PropertyController extends Controller
             $workOrder->status = $request->status;
             $workOrder->updated_at = now();
             $workOrder->save();
+
+            // Si se cancela el servicio (Rechazado o Cancelado), notificamos al Cliente y al Técnico
+            if (in_array($request->status, ['Rechazado', 'Cancelado']) && !in_array($oldStatus, ['Rechazado', 'Cancelado'])) {
+                try {
+                    // 1. Notificación al Cliente
+                    if ($workOrder->property && $workOrder->property->client_id) {
+                        $client = \App\Models\Client::find($workOrder->property->client_id);
+                        if ($client && $client->user_id) {
+                            $userCliente = User::find($client->user_id);
+                            if ($userCliente) {
+                                Notification::send($userCliente, new WorkOrderCancelledNotification($workOrder, 'client'));
+                                \Log::info("Notificación de trabajo cancelado enviada al cliente.");
+                            }
+                        }
+                    }
+
+                    // 2. Notificación a los Técnicos asignados
+                    $tecnicos = $workOrder->technicians;
+                    if ($tecnicos && $tecnicos->count() > 0) {
+                        Notification::send($tecnicos, new WorkOrderCancelledNotification($workOrder, 'technician'));
+                        \Log::info("Notificación de trabajo cancelado enviada a técnicos (relación N:M).");
+                    }
+                    
+                    if ($workOrder->tecnico_id) {
+                        $tecnicoSolo = User::find($workOrder->tecnico_id);
+                        if ($tecnicoSolo && (!$tecnicos || !$tecnicos->contains($tecnicoSolo->id))) {
+                            Notification::send($tecnicoSolo, new WorkOrderCancelledNotification($workOrder, 'technician'));
+                            \Log::info("Notificación de trabajo cancelado enviada al técnico individual.");
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::error("Error enviando notificaciones de servicio cancelado: " . $e->getMessage());
+                }
+            }
 
             // Si el técnico marca como "Listo", notificamos al Admin
             if ($request->status === 'Listo' && $oldStatus !== 'Listo') {
