@@ -142,10 +142,15 @@ class PropertyController extends Controller
             $query = Property::with('client')->orderByDesc('created_at');
 
             // Filtrado basado en el rol (Si es Cliente 3, solo ve las suyas)
+            $cliente = null;
             if ($user->role_id == 3) {
                 $cliente = DB::table('clients')->where('user_id', $user->id)->first();
                 if ($cliente) {
-                    $query->where('client_id', $cliente->id);
+                    $sharedPropertyIds = DB::table('property_shares')->where('client_id', $cliente->id)->pluck('property_id');
+                    $query->where(function ($q) use ($cliente, $sharedPropertyIds) {
+                        $q->where('client_id', $cliente->id)
+                          ->orWhereIn('id', $sharedPropertyIds);
+                    });
                 } else {
                     // Si el usuario no tiene perfil, le devolvemos una lista vacía
                     return response()->json([], 200);
@@ -154,7 +159,7 @@ class PropertyController extends Controller
 
             $propiedades = $query->get();
 
-            $formateadas = $propiedades->map(function ($p) {
+            $formateadas = $propiedades->map(function ($p) use ($cliente, $user) {
                 $tienePendiente = DB::table('services')
                     ->where('property_id', $p->id)
                     ->whereNotIn('status', ['Finalizado', 'Cancelado'])
@@ -177,6 +182,19 @@ class PropertyController extends Controller
                 
                 \Log::info("Propiedad {$p->id} ({$p->property_name}): Zonas detectadas = " . ($tieneZonas ? 'SI' : 'NO'));
 
+                $is_shared_with_me = false;
+                $is_shared_by_me = false;
+
+                if ($cliente) {
+                    if ($p->client_id !== $cliente->id) {
+                        $is_shared_with_me = true;
+                    } else {
+                        $is_shared_by_me = DB::table('property_shares')->where('property_id', $p->id)->exists();
+                    }
+                } else if ($user->role_id == 0 || $user->role_id == 1) {
+                    $is_shared_by_me = DB::table('property_shares')->where('property_id', $p->id)->exists();
+                }
+
                 return [
                     'id' => $p->id,
                     'client_id' => $p->client_id,
@@ -193,6 +211,8 @@ class PropertyController extends Controller
                     'has_pending_service' => $tienePendiente,
                     'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
                     'levantamiento_realizado' => $realizado,
+                    'is_shared_with_me' => $is_shared_with_me,
+                    'is_shared_by_me' => $is_shared_by_me,
                 ];
             });
 
@@ -215,6 +235,14 @@ class PropertyController extends Controller
             }
 
             $property = Property::findOrFail($id);
+
+            // Verificar que no sea un usuario que solo tiene la propiedad compartida
+            if ($user->role_id == 3) {
+                $cliente = DB::table('clients')->where('user_id', $user->id)->first();
+                if (!$cliente || $property->client_id !== $cliente->id) {
+                    return response()->json(['error' => 'Acceso denegado. No eres el dueño principal de esta propiedad.'], 403);
+                }
+            }
 
             // Nota: Esto elimina fotos solo si quedaron algunas viejas guardadas en local.
             // Las de Cloudinary se quedan en la nube como respaldo.
@@ -316,9 +344,19 @@ class PropertyController extends Controller
                 ->orderBy('id', 'desc')
                 ->first();
 
+            $is_shared_with_me = false;
+            $user = auth('sanctum')->user();
+            if ($user && $user->role_id == 3) {
+                $cliente = DB::table('clients')->where('user_id', $user->id)->first();
+                if ($cliente && $propiedad->client_id !== $cliente->id) {
+                    $is_shared_with_me = true;
+                }
+            }
+
             return response()->json([
                 'propiedad' => $propiedad,
                 'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
+                'is_shared_with_me' => $is_shared_with_me,
                 'stats' => [
                     'sos' => $sosCount,
                     'pendientes' => $stats['Por Hacer'] ?? 0,
@@ -897,9 +935,158 @@ class PropertyController extends Controller
             ], 200);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al generar reporte: ' . $e->getMessage()], 500);
+            return response()->json(['error' => 'Error al obtener reporte: ' . $e->getMessage()], 500);
         }
     }
+
+    // ---------------------------------------------------
+    // 13. COMPARTIR PROPIEDAD
+    // ---------------------------------------------------
+    public function shareProperty(Request $request, $id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado.'], 401);
+            
+            $request->validate([
+                'email' => 'required|email'
+            ]);
+
+            $property = Property::findOrFail($id);
+
+            // Solo dueño o admin puede compartir
+            if ($user->role_id == 3) {
+                $clienteDuenio = DB::table('clients')->where('user_id', $user->id)->first();
+                if (!$clienteDuenio || $property->client_id !== $clienteDuenio->id) {
+                    return response()->json(['error' => 'Solo el dueño principal puede compartir la propiedad.'], 403);
+                }
+            }
+
+            // Buscar al cliente por email
+            $clienteInvitado = DB::table('clients')->where('email', $request->email)->first();
+            if (!$clienteInvitado) {
+                // Buscamos a ver si es un usuario
+                $userInvitado = User::where('email', $request->email)->where('role_id', 3)->first();
+                if ($userInvitado) {
+                    // Si es usuario pero no tiene perfil de cliente, se lo creamos temporalmente o lo denegamos.
+                    // Para simplificar, devolvemos error y le decimos que debe haber iniciado sesión al menos una vez
+                    return response()->json(['error' => 'El usuario existe pero no ha configurado su perfil de cliente. Pídele que inicie sesión primero.'], 404);
+                }
+                return response()->json(['error' => 'El correo no pertenece a ningún cliente del sistema.'], 404);
+            }
+
+            if ($property->client_id === $clienteInvitado->id) {
+                return response()->json(['error' => 'No puedes compartir tu propia propiedad contigo mismo.'], 400);
+            }
+
+            // Checar si ya está compartido
+            $exists = DB::table('property_shares')->where('property_id', $property->id)->where('client_id', $clienteInvitado->id)->exists();
+            if ($exists) {
+                return response()->json(['error' => 'La propiedad ya está compartida con este usuario.'], 400);
+            }
+
+            DB::table('property_shares')->insert([
+                'property_id' => $property->id,
+                'client_id' => $clienteInvitado->id,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            // Enviar notificaciones
+            $ownerName = $property->client ? $property->client->name : 'El dueño';
+            $guestName = $clienteInvitado->name;
+            $propName = $property->property_name ?: $property->address;
+
+            // Al dueño
+            if ($property->client && $property->client->user_id) {
+                $ownerUser = User::find($property->client->user_id);
+                if ($ownerUser) Notification::send($ownerUser, new \App\Notifications\PropertySharedNotification($ownerName, $guestName, $propName, 'owner'));
+            }
+            
+            // Al invitado
+            if ($clienteInvitado->user_id) {
+                $guestUser = User::find($clienteInvitado->user_id);
+                if ($guestUser) Notification::send($guestUser, new \App\Notifications\PropertySharedNotification($ownerName, $guestName, $propName, 'guest'));
+            }
+
+            // A los admins
+            $admins = User::whereIn('role_id', [0, 1])->get();
+            Notification::send($admins, new \App\Notifications\PropertySharedNotification($ownerName, $guestName, $propName, 'admin'));
+
+            return response()->json(['message' => 'Propiedad compartida con éxito'], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al compartir propiedad: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function revokeShare(Request $request, $id, $clientId)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) return response()->json(['error' => 'No autorizado.'], 401);
+
+            $property = Property::findOrFail($id);
+
+            // Solo dueño o admin puede revocar
+            if ($user->role_id == 3) {
+                $clienteDuenio = DB::table('clients')->where('user_id', $user->id)->first();
+                if (!$clienteDuenio || $property->client_id !== $clienteDuenio->id) {
+                    return response()->json(['error' => 'Solo el dueño principal puede revocar la herencia.'], 403);
+                }
+            }
+
+            $clienteInvitado = DB::table('clients')->where('id', $clientId)->first();
+
+            DB::table('property_shares')
+                ->where('property_id', $property->id)
+                ->where('client_id', $clientId)
+                ->delete();
+
+            if ($clienteInvitado) {
+                // Enviar notificaciones
+                $ownerName = $property->client ? $property->client->name : 'El dueño';
+                $guestName = $clienteInvitado->name;
+                $propName = $property->property_name ?: $property->address;
+
+                // Al dueño
+                if ($property->client && $property->client->user_id) {
+                    $ownerUser = User::find($property->client->user_id);
+                    if ($ownerUser) Notification::send($ownerUser, new \App\Notifications\PropertyShareRevokedNotification($ownerName, $guestName, $propName, 'owner'));
+                }
+                
+                // Al invitado
+                if ($clienteInvitado->user_id) {
+                    $guestUser = User::find($clienteInvitado->user_id);
+                    if ($guestUser) Notification::send($guestUser, new \App\Notifications\PropertyShareRevokedNotification($ownerName, $guestName, $propName, 'guest'));
+                }
+
+                // A los admins
+                $admins = User::whereIn('role_id', [0, 1])->get();
+                Notification::send($admins, new \App\Notifications\PropertyShareRevokedNotification($ownerName, $guestName, $propName, 'admin'));
+            }
+
+            return response()->json(['message' => 'Acceso revocado con éxito'], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al revocar acceso: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getSharedUsers($id)
+    {
+        try {
+            $shares = DB::table('property_shares')
+                ->join('clients', 'property_shares.client_id', '=', 'clients.id')
+                ->where('property_shares.property_id', $id)
+                ->select('clients.id', 'clients.name', 'clients.email', 'clients.phone', 'clients.profile_picture', 'property_shares.created_at')
+                ->get();
+            
+            return response()->json($shares);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener usuarios invitados: ' . $e->getMessage()], 500);
+        }
+    }
+}
 
     private function getFormattedSecciones($propertyId)
     {

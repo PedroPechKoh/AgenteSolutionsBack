@@ -181,6 +181,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/properties/{id}/inventory-report', [PropertyController::class, 'getPropertyReport']);
     Route::post('/properties/{id}/finalize-survey', [PropertyController::class, 'finalizeSurvey']);
 
+    // --- COMPARTIR PROPIEDAD (HERENCIA) ---
+    Route::post('/propiedades/{id}/share', [PropertyController::class, 'shareProperty']);
+    Route::delete('/propiedades/{id}/share/{clientId}', [PropertyController::class, 'revokeShare']);
+    Route::get('/propiedades/{id}/shared-users', [PropertyController::class, 'getSharedUsers']);
+
     Route::get('/map', function () {
         $propiedades = \Illuminate\Support\Facades\DB::table('properties')
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
