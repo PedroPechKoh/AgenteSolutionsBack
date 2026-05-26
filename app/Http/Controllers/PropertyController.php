@@ -1115,7 +1115,23 @@ class PropertyController extends Controller
                 ->where('property_area_id', $area->id)
                 ->get();
 
-            $subSecciones = $components->groupBy('category')->map(function ($items, $catName) {
+            // Obtener categorías explícitas guardadas para el área
+            $explicitCategories = DB::table('property_maintenance_categories')
+                ->where('property_area_id', $area->id)
+                ->pluck('name')
+                ->toArray();
+
+            // Agrupar componentes por su categoría
+            $groupedComponents = $components->groupBy('category');
+
+            // Asegurar que las categorías explícitas existan en el grupo, aunque estén vacías
+            foreach ($explicitCategories as $catName) {
+                if (!$groupedComponents->has($catName)) {
+                    $groupedComponents->put($catName, collect([]));
+                }
+            }
+
+            $subSecciones = $groupedComponents->map(function ($items, $catName) {
                 return [
                     'nombre' => $catName ?: 'General',
                     'inventario' => $items->map(function($item) {
