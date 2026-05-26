@@ -34,15 +34,39 @@ class UserController extends Controller
                     return response()->json(['success' => false, 'message' => 'Cliente no encontrado'], 404);
                 }
 
+                $emailExists = DB::table('users')->where('email', $request->input('email'))->where('id', '!=', $cliente->user_id)->exists();
+                if ($emailExists) {
+                    return response()->json(['success' => false, 'message' => 'Este correo electrónico ya está registrado en otra cuenta.'], 422);
+                }
+                
+                $phone = $request->input('phone_number');
+                if (!empty($phone)) {
+                    $phoneExists = DB::table('users')->where('phone_number', $phone)->where('id', '!=', $cliente->user_id)->exists();
+                    if ($phoneExists) {
+                        return response()->json(['success' => false, 'message' => 'Este número de teléfono ya está registrado en otra cuenta.'], 422);
+                    }
+                }
+
                 $fullName = trim($request->input('first_name') . ' ' . $request->input('last_name'));
 
                 $updateData = [
                     'name' => $fullName,
                     'email' => $request->input('email'),
-                    'phone' => $request->input('phone_number'),
+                    'phone' => $phone,
                     'is_active' => $request->input('is_active'),
                     'updated_at' => now(),
                 ];
+
+                if ($cliente->user_id) {
+                    DB::table('users')->where('id', $cliente->user_id)->update([
+                        'first_name' => $request->input('first_name'),
+                        'last_name' => $request->input('last_name'),
+                        'email' => $request->input('email'),
+                        'phone_number' => $phone,
+                        'is_active' => $request->input('is_active'),
+                        'updated_at' => now(),
+                    ]);
+                }
 
                 if ($profilePicturePath) {
                     $updateData['profile_picture'] = $profilePicturePath;
@@ -69,7 +93,7 @@ class UserController extends Controller
             // 2. MANEJO PARA USUARIOS (Tabla 'users')
             // ---------------------------------------------------------
 
-            // ✅ ASIGNACIÓN DINÁMICA DEL ID
+            // 1ro. ASIGNACIÓN DINÁMICA DEL ID
             $realId = $cleanUserId ? $cleanUserId : str_replace('u_', '', $idWithPrefix);
 
             $user = User::find($realId);
@@ -83,10 +107,23 @@ class UserController extends Controller
                 return response()->json(['success' => false, 'message' => 'Acceso Denegado.'], 403);
             }
 
+            $emailExists = User::where('email', $request->input('email'))->where('id', '!=', $user->id)->exists();
+            if ($emailExists) {
+                return response()->json(['success' => false, 'message' => 'Este correo electrónico ya está registrado en otra cuenta.'], 422);
+            }
+
+            $phone = $request->input('phone_number');
+            if (!empty($phone)) {
+                $phoneExists = User::where('phone_number', $phone)->where('id', '!=', $user->id)->exists();
+                if ($phoneExists) {
+                    return response()->json(['success' => false, 'message' => 'Este número de teléfono ya está registrado en otra cuenta.'], 422);
+                }
+            }
+
             $user->first_name = $request->input('first_name');
             $user->last_name = $request->input('last_name') ?: '';
             $user->email = $request->input('email');
-            $user->phone_number = $request->input('phone_number');
+            $user->phone_number = $phone;
 
             if ($request->filled('birth_date')) {
                 $user->birth_date = $request->input('birth_date');

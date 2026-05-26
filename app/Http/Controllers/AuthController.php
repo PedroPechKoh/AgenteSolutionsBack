@@ -17,8 +17,10 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:191|unique:users',
             'password' => 'required|string|min:6',
             'role_id' => 'required|integer',
-            // Puedes agregar phone_number si también lo mandas desde el frontend
-            'phone_number' => 'nullable|string|max:20'
+            'phone_number' => 'nullable|string|max:20|unique:users,phone_number'
+        ], [
+            'email.unique' => 'Este correo electrónico ya está registrado en otra cuenta.',
+            'phone_number.unique' => 'Este número de teléfono ya está registrado en otra cuenta.'
         ]);
 
         // 2. Guardamos usando los campos correctos de la tabla

@@ -75,6 +75,14 @@ Route::post('/registro-usuario', [AuthController::class, 'registro']);
 // Registro Público (Exclusivo para Clientes)
 Route::post('/registro-cliente', function (\Illuminate\Http\Request $request) {
     try {
+        $request->validate([
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'required|string|unique:users,phone_number',
+        ], [
+            'email.unique' => 'Este correo electrónico ya está registrado en otra cuenta.',
+            'phone.unique' => 'Este número de teléfono ya está registrado en otra cuenta.'
+        ]);
+
         return \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
             // 1. Creamos el usuario para el Login
             $userId = \Illuminate\Support\Facades\DB::table('users')->insertGetId([
@@ -82,6 +90,7 @@ Route::post('/registro-cliente', function (\Illuminate\Http\Request $request) {
                 'first_name' => trim($request->first_name),
                 'last_name' => trim($request->last_name),
                 'email' => $request->email,
+                'phone_number' => $request->phone,
                 'password' => Hash::make($request->password),
                 'is_active' => 1,
                 'created_at' => now(),
