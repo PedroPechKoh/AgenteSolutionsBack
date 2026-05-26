@@ -45,15 +45,17 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|string|email',
+            'email' => 'required|string',
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $request->email)
+                    ->orWhere('phone_number', $request->email)
+                    ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
-                'message' => 'Credenciales incorrectas. Verifica tu correo y contraseña.'
+                'message' => 'Credenciales incorrectas. Verifica tus datos y contraseña.'
             ], 401);
         }
 
