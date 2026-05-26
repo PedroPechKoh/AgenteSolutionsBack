@@ -845,22 +845,23 @@ class ServiceController extends Controller
             // Obtener categorías explícitas guardadas para el área
             $explicitCategories = DB::table('property_maintenance_categories')
                 ->where('property_area_id', $area->id)
-                ->pluck('name')
-                ->toArray();
+                ->get();
 
             // Agrupar componentes por su categoría
             $groupedComponents = $components->groupBy('category');
 
             // Asegurar que las categorías explícitas existan en el grupo, aunque estén vacías
-            foreach ($explicitCategories as $catName) {
-                if (!$groupedComponents->has($catName)) {
-                    $groupedComponents->put($catName, collect([]));
+            foreach ($explicitCategories as $cat) {
+                if (!$groupedComponents->has($cat->name)) {
+                    $groupedComponents->put($cat->name, collect([]));
                 }
             }
 
             // Mapear para formar las 'subSecciones' que espera React
-            $subSecciones = $groupedComponents->map(function ($items, $catName) {
+            $subSecciones = $groupedComponents->map(function ($items, $catName) use ($explicitCategories) {
+                $catRecord = $explicitCategories->firstWhere('name', $catName);
                 return [
+                    'id' => $catRecord ? $catRecord->id : null,
                     'nombre' => $catName ?: 'General',
                     'inventario' => $items->map(function($item) {
                         // Mapear campos para que el frontend (React) los detecte correctamente
