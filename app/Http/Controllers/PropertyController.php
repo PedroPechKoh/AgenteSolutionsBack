@@ -1086,7 +1086,6 @@ class PropertyController extends Controller
             return response()->json(['error' => 'Error al obtener usuarios invitados: ' . $e->getMessage()], 500);
         }
     }
-}
 
     private function getFormattedSecciones($propertyId)
     {
