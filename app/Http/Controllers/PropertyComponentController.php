@@ -277,6 +277,21 @@ class PropertyComponentController extends Controller
                 return response()->json(['error' => 'No encontrado'], 404);
             }
 
+            // ELIMINAR FOTOS DE LA GALERÍA SELECCIONADAS
+            if ($request->has('deleted_gallery_ids')) {
+                $deletedIds = $request->deleted_gallery_ids;
+                if (is_string($deletedIds)) {
+                    $decoded = json_decode($deletedIds, true);
+                    $deletedIds = is_array($decoded) ? $decoded : explode(',', $deletedIds);
+                }
+                if (is_array($deletedIds) && count($deletedIds) > 0) {
+                    DB::table('component_galleries')
+                        ->where('property_component_id', $id)
+                        ->whereIn('id', $deletedIds)
+                        ->delete();
+                }
+            }
+
             $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
 
             // ACTUALIZAR IMAGEN PRINCIPAL
