@@ -96,6 +96,62 @@ class ServiceController extends Controller
         }
     }
 
+    public function updateReport(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'description' => 'required|string',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:10240',
+            ]);
+
+            $report = WorkReport::find($id);
+            if (!$report) {
+                return response()->json(['success' => false, 'error' => 'Reporte no encontrado'], 404);
+            }
+
+            $report->description = $request->description;
+
+            if ($request->hasFile('image')) {
+                $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+                $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
+                    'folder' => 'agente_reportes'
+                ]);
+                $report->image_url = $respuestaNube['secure_url'];
+            }
+
+            $report->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reporte actualizado con éxito',
+                'report' => $report
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error actualizando reporte: " . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Error al actualizar reporte: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function deleteReport($id)
+    {
+        try {
+            $report = WorkReport::find($id);
+            if (!$report) {
+                return response()->json(['success' => false, 'error' => 'Reporte no encontrado'], 404);
+            }
+
+            $report->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Reporte eliminado con éxito'
+            ], 200);
+        } catch (\Exception $e) {
+            Log::error("Error eliminando reporte: " . $e->getMessage());
+            return response()->json(['success' => false, 'error' => 'Error al eliminar reporte: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function storeFinalReport(Request $request, $id)
     {
         try {

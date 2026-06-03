@@ -243,6 +243,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rutas para Reportes de Trabajo
     Route::get('/servicios/{id}/reportes', [ServiceController::class, 'getReports']);
     Route::post('/servicios/{id}/reportes', [ServiceController::class, 'storeReport']);
+    Route::put('/reportes/{id}', [ServiceController::class, 'updateReport']);
+    Route::delete('/reportes/{id}', [ServiceController::class, 'deleteReport']);
     Route::post('/servicios/{id}/final-report', [ServiceController::class, 'storeFinalReport']);
     Route::get('/servicios/{id}/final-report', [ServiceController::class, 'getFinalReport']);
     Route::post('/services/assign', [ServiceController::class, 'store']);
