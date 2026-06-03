@@ -29,9 +29,9 @@ class NewServiceRequested extends Notification
         return [
             'service_id' => $this->service->id,
             'alert_type' => 'new_service_requested',
-            'title' => '¡Nueva Solicitud de Levantamiento!',
-            'message' => "{$clienteNombre} ha solicitado un nuevo levantamiento (ID: #{$this->service->id}) y está esperando que le asignes un técnico.",
-            'url' => "/levantamientos" 
+            'title' => '¡Nueva Solicitud de Servicio!',
+            'message' => "{$clienteNombre} ha reportado un nuevo problema o solicitud (ID: #{$this->service->id}) y está esperando que le asignes un técnico.",
+            'url' => "/tablero-servicios" 
         ];
     }
 }
