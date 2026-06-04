@@ -334,7 +334,20 @@ class PropertyController extends Controller
                 ->limit(5)
                 ->get();
 
-            $cotizacionesCount = 0;
+            $cotizacionesCount = DB::table('quotes')
+                ->leftJoin('services', 'quotes.service_id', '=', 'services.id')
+                ->leftJoin('work_orders', 'quotes.work_order_id', '=', 'work_orders.id')
+                ->where(function ($query) use ($id) {
+                    $query->where('services.property_id', $id)
+                          ->orWhere('work_orders.property_id', $id);
+                })
+                ->where(function ($q) {
+                    $q->where('quotes.status', 'Pendiente')
+                      ->orWhere('quotes.status', 'En proceso')
+                      ->orWhere('quotes.status', 'like', '%Admin%');
+                })
+                ->count();
+
             $totalTareas = $sosCount + ($stats['Por Hacer'] ?? 0) + ($stats['En Proceso'] ?? 0) + ($stats['Listo'] ?? 0);
             $avanceObra = $totalTareas > 0 ? round((($stats['Listo'] ?? 0) / $totalTareas) * 100) : 0;
 
