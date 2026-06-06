@@ -357,6 +357,19 @@ class PropertyController extends Controller
                 ->orderBy('id', 'desc')
                 ->first();
 
+            // Fetch Owner Info
+            $ownerInfo = DB::table('clients')
+                ->where('id', $propiedad->client_id)
+                ->select('name', 'profile_picture')
+                ->first();
+
+            // Fetch Shared Users
+            $sharedUsers = DB::table('property_shares')
+                ->join('clients', 'property_shares.client_id', '=', 'clients.id')
+                ->where('property_shares.property_id', $id)
+                ->select('clients.id', 'clients.name', 'clients.profile_picture')
+                ->get();
+
             $is_shared_with_me = false;
             $user = auth('sanctum')->user();
             if ($user && $user->role_id == 3) {
@@ -368,6 +381,8 @@ class PropertyController extends Controller
 
             return response()->json([
                 'propiedad' => $propiedad,
+                'owner_info' => $ownerInfo,
+                'shared_users' => $sharedUsers,
                 'id_levantamiento' => $levantamiento ? $levantamiento->id : null,
                 'is_shared_with_me' => $is_shared_with_me,
                 'stats' => [
