@@ -77,7 +77,7 @@ class AppSettingController extends Controller
     public function updateAppLogo(Request $request)
     {
         $request->validate([
-            'app_logo' => 'required|image|mimes:jpeg,png,jpg,webp,svg|max:2048',
+            'app_logo' => 'required|file|mimes:jpeg,png,jpg,webp,svg|max:5120',
         ]);
 
         if ($request->hasFile('app_logo')) {
@@ -106,7 +106,7 @@ class AppSettingController extends Controller
     public function updateSidebarLinks(Request $request)
     {
         $request->validate([
-            'links' => 'required|array',
+            'links' => 'present|array',
         ]);
 
         $setting = AppSetting::updateOrCreate(
