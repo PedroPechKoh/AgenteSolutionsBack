@@ -115,10 +115,20 @@ Route::post('/registro-cliente', function (\Illuminate\Http\Request $request) {
 });
 
 // Rutas para Personalizar Login
-Route::post('/ui/settings/login-background/image', [AppSettingController::class, 'updateLoginBackground']);
-Route::delete('/ui/settings/login-background/image', [AppSettingController::class, 'deleteLoginBackground']);
-Route::post('/ui/settings/login-background/color', [AppSettingController::class, 'updateLoginColor']);
-Route::get('/ui/settings/login-settings', [AppSettingController::class, 'getLoginSettings']);
+    Route::prefix('ui/settings')->group(function () {
+        Route::post('/login-background/image', [AppSettingController::class, 'updateLoginBackground']);
+        Route::post('/login-background/color', [AppSettingController::class, 'updateLoginColor']);
+        Route::delete('/login-background/image', [AppSettingController::class, 'deleteLoginBackground']);
+        Route::get('/login-settings', [AppSettingController::class, 'getLoginSettings']);
+        
+        // --- LOGO Y FAVICON ---
+        Route::post('/app-logo', [AppSettingController::class, 'updateAppLogo']);
+        Route::delete('/app-logo', [AppSettingController::class, 'deleteAppLogo']);
+        
+        // --- SIDEBAR CLIENTE ---
+        Route::post('/sidebar-links', [AppSettingController::class, 'updateSidebarLinks']);
+        Route::get('/sidebar-links', [AppSettingController::class, 'getSidebarLinks']);
+    });
 
 // Limpiar caché de Railway
 Route::get('/limpiar-cache', function () {

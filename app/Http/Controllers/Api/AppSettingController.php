@@ -62,13 +62,65 @@ class AppSettingController extends Controller
     {
         $imageSetting = AppSetting::where('setting_key', 'login_background_image')->first();
         $colorSetting = AppSetting::where('setting_key', 'login_background_color')->first();
+        $logoSetting = AppSetting::where('setting_key', 'app_logo')->first();
 
         return response()->json([
             'success' => true,
             'settings' => [
                 'imageUrl' => $imageSetting ? $imageSetting->setting_value : null,
-                'colorHex' => $colorSetting ? $colorSetting->setting_value : '#000000' 
+                'colorHex' => $colorSetting ? $colorSetting->setting_value : '#000000',
+                'appLogo' => $logoSetting ? $logoSetting->setting_value : null
             ]
         ], 200);
+    }
+
+    public function updateAppLogo(Request $request)
+    {
+        $request->validate([
+            'app_logo' => 'required|image|mimes:jpeg,png,jpg,webp,svg|max:2048',
+        ]);
+
+        if ($request->hasFile('app_logo')) {
+            $cloudinary = new \Cloudinary\Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
+            $respuestaNube = $cloudinary->uploadApi()->upload($request->file('app_logo')->getRealPath(), [
+                'folder' => 'app_logos'
+            ]);
+            $imageUrl = $respuestaNube['secure_url'];
+
+            $setting = AppSetting::updateOrCreate(
+                ['setting_key' => 'app_logo'], 
+                ['setting_value' => $imageUrl]
+            );
+
+            return response()->json(['success' => true, 'data' => $setting], 200);
+        }
+        return response()->json(['success' => false, 'message' => 'No image found'], 400);
+    }
+
+    public function deleteAppLogo()
+    {
+        \App\Models\AppSetting::where('setting_key', 'app_logo')->delete();
+        return response()->json(['success' => true, 'message' => 'Logo eliminado correctamente.'], 200);
+    }
+
+    public function updateSidebarLinks(Request $request)
+    {
+        $request->validate([
+            'links' => 'required|array',
+        ]);
+
+        $setting = AppSetting::updateOrCreate(
+            ['setting_key' => 'sidebar_client_links'],
+            ['setting_value' => json_encode($request->links)]
+        );
+
+        return response()->json(['success' => true, 'data' => $setting], 200);
+    }
+
+    public function getSidebarLinks()
+    {
+        $setting = AppSetting::where('setting_key', 'sidebar_client_links')->first();
+        $links = $setting ? json_decode($setting->setting_value, true) : [];
+        return response()->json(['success' => true, 'links' => $links], 200);
     }
 }
