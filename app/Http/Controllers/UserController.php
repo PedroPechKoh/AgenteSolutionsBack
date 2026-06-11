@@ -113,12 +113,15 @@ class UserController extends Controller
             }
 
             $phone = $request->input('phone_number');
+            // Quitamos la validación estricta de teléfono único para permitir cuentas de prueba con el mismo celular
+            /*
             if (!empty($phone)) {
                 $phoneExists = User::where('phone_number', $phone)->where('id', '!=', $user->id)->exists();
                 if ($phoneExists) {
                     return response()->json(['success' => false, 'message' => 'Este número de teléfono ya está registrado en otra cuenta.'], 422);
                 }
             }
+            */
 
             $user->first_name = $request->input('first_name');
             $user->last_name = $request->input('last_name') ?: '';
@@ -141,6 +144,16 @@ class UserController extends Controller
             }
 
             $user->save();
+
+            // ✅ CORRECCIÓN: Si el usuario es cliente (role_id 3), actualizamos también la tabla 'clients'
+            if ($user->role_id == 3) {
+                DB::table('clients')->where('user_id', $user->id)->update([
+                    'name' => trim($user->first_name . ' ' . $user->last_name),
+                    'email' => $user->email,
+                    'phone' => $user->phone_number,
+                    'updated_at' => now(),
+                ]);
+            }
 
             $fotoUrl = $user->profile_picture
                 ? (str_starts_with($user->profile_picture, 'http') ? $user->profile_picture : asset('storage/' . $user->profile_picture))
