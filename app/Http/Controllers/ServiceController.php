@@ -799,7 +799,7 @@ class ServiceController extends Controller
             }
             */
 
-            return response()->json($unificados);
+            return response()->json($unificados->values());
         } catch (\Exception $e) {
             Log::error("Error en getTecnicoServicios: " . $e->getMessage());
             return response()->json(['error' => 'Error interno del servidor', 'details' => $e->getMessage()], 500);
