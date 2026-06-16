@@ -712,18 +712,26 @@ class ServiceController extends Controller
 
     public function getTecnicoServicios($idTecnico) {
         try {
-            // 1. Obtener de la tabla 'services'
+            // 1. Servicios (con columnas seguras)
             $servicios = DB::table('services')
                 ->join('properties', 'services.property_id', '=', 'properties.id')
                 ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
                 ->leftJoin('service_technician', 'services.id', '=', 'service_technician.service_id')
                 ->select(
-                    'services.*', 
-                    'properties.property_name', 
-                    'properties.address', 
-                    'properties.coordinates',
-                    'properties.facade_photo_path',
-                    'properties.custom_curp',
+                    'services.id',
+                    'services.title',
+                    'services.description',
+                    'services.status',
+                    'services.assigned_to',
+                    'services.scheduled_start',
+                    'services.scheduled_end',
+                    'services.real_start',
+                    'services.real_end',
+                    'services.property_id',
+                    'services.created_at',
+                    'services.updated_at',
+                    'properties.property_name',
+                    'properties.address',
                     'clients.name as client_name',
                     'clients.phone as client_phone'
                 )
@@ -731,21 +739,27 @@ class ServiceController extends Controller
                     $query->where('services.assigned_to', $idTecnico)
                           ->orWhere('service_technician.technician_id', $idTecnico);
                 })
-                ->distinct()
+                ->distinct('services.id')
                 ->get();
 
-            // 2. Obtener de la tabla 'work_orders'
+            // 2. Work Orders (con columnas seguras)
             $workOrders = DB::table('work_orders')
                 ->join('properties', 'work_orders.property_id', '=', 'properties.id')
                 ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
                 ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
                 ->select(
-                    'work_orders.*',
-                    'properties.property_name', 
-                    'properties.address', 
-                    'properties.coordinates',
-                    'properties.facade_photo_path',
-                    'properties.custom_curp',
+                    'work_orders.id',
+                    'work_orders.type',
+                    'work_orders.zone',
+                    'work_orders.description',
+                    'work_orders.status',
+                    'work_orders.tecnico_id',
+                    'work_orders.scheduled_at',
+                    'work_orders.property_id',
+                    'work_orders.created_at',
+                    'work_orders.updated_at',
+                    'properties.property_name',
+                    'properties.address',
                     'clients.name as client_name',
                     'clients.phone as client_phone'
                 )
@@ -753,10 +767,10 @@ class ServiceController extends Controller
                     $query->where('work_orders.tecnico_id', $idTecnico)
                           ->orWhere('work_order_technician.technician_id', $idTecnico);
                 })
-                ->distinct()
+                ->distinct('work_orders.id')
                 ->get();
 
-            // 3. Unificar (Normalizando nombres de campos)
+            // 3. Unificar normalizando campos para el frontend
             $unificados = $servicios->map(function($s) {
                 $s->composite_id = "servicio-{$s->id}";
                 $s->tipo_registro = 'servicio';
@@ -764,45 +778,21 @@ class ServiceController extends Controller
             })->concat($workOrders->map(function($w) {
                 $w->composite_id = "work_order-{$w->id}";
                 $w->tipo_registro = 'work_order';
-                // Mapear campos diferentes para que el frontend no rompa
                 $w->assigned_to = $w->tecnico_id;
                 $w->scheduled_start = $w->scheduled_at;
-                // Si no tiene título, usamos el tipo o zona
-                if (!isset($w->title) || !$w->title) {
-                    $w->title = ($w->type ?? 'Trabajo') . ' - ' . ($w->zone ?? 'General');
-                }
+                // Generar título si no existe
+                $w->title = ($w->type ?? 'Trabajo') . ' - ' . ($w->zone ?? 'General');
                 return $w;
             }));
 
-            /* --- LÓGICA DE DETECCIÓN DE ATRASOS (TEMPORALMENTE DESHABILITADA PARA DEBUG) ---
-            $hoy = now();
-            foreach ($unificados as $s) {
-                $fechaProgramada = $s->scheduled_start ? \Carbon\Carbon::parse($s->scheduled_start) : null;
-                
-                if ($fechaProgramada && $fechaProgramada->isPast() && !in_array(strtolower($s->status), ['completed', 'finalizado', 'listo', 'completado'])) {
-                    
-                    $alreadyNotified = DB::table('notifications')
-                        ->where('type', 'App\Notifications\TechnicianMissedVisitNotification')
-                        ->where('data', 'like', '%"service_id":' . $s->id . '%')
-                        ->where('created_at', '>=', now()->startOfDay())
-                        ->exists();
-
-                    if (!$alreadyNotified) {
-                        $admins = User::whereIn('role_id', [0, 1])->get();
-                        $tecnico = User::find($idTecnico);
-                        $tecnicoNombre = $tecnico ? $tecnico->first_name : 'Técnico';
-                        
-                        Notification::send($admins, new TechnicianMissedVisitNotification($s, $tecnicoNombre));
-                        Log::info("Notificación de visita no realizada enviada para el " . $s->tipo_registro . " #{$s->id}");
-                    }
-                }
-            }
-            */
-
             return response()->json($unificados->values());
+
         } catch (\Exception $e) {
             Log::error("Error en getTecnicoServicios: " . $e->getMessage());
-            return response()->json(['error' => 'Error interno del servidor', 'details' => $e->getMessage()], 500);
+            return response()->json([
+                'error' => 'Error interno del servidor',
+                'details' => $e->getMessage()
+            ], 500);
         }
     }
 
