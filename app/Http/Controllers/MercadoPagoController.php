@@ -54,6 +54,7 @@ class MercadoPagoController extends Controller
                 ],
                 "auto_return" => "approved", // Redirige automáticamente cuando el pago es aprobado
                 "external_reference" => (string) $quote->id, // Para identificar el pago en el webhook
+                "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
             ];
 
             if ($request->user() && $request->user()->email) {
