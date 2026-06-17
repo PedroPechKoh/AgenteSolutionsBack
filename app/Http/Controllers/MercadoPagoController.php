@@ -68,12 +68,17 @@ class MercadoPagoController extends Controller
 
     public function webhook(Request $request)
     {
-        // MercadoPago envía notificaciones de tipo "payment"
-        if ($request->type === 'payment' && isset($request->data['id'])) {
+        // MP puede enviar 'type' o 'topic', y el ID puede estar en 'data.id' o 'id'
+        $type = $request->input('type') ?? $request->input('topic');
+        $action = $request->input('action');
+        $dataId = $request->input('data.id') ?? $request->input('id');
+
+        // Considerar válido si es payment, o si action es payment.created
+        if (($type === 'payment' || $action === 'payment.created') && $dataId) {
             try {
                 // Instanciar el cliente de pagos de MercadoPago para verificar el estado real del pago
                 $paymentClient = new \MercadoPago\Client\Payment\PaymentClient();
-                $payment = $paymentClient->get($request->data['id']);
+                $payment = $paymentClient->get($dataId);
 
                 if ($payment) {
                     // El external_reference es el ID de nuestra cotización
