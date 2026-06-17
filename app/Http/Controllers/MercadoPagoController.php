@@ -29,7 +29,7 @@ class MercadoPagoController extends Controller
 
             $total = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
 
-            $preference = $client->create([
+            $preferenceParams = [
                 "items" => [
                     [
                         "id" => (string) $quote->id,
@@ -47,7 +47,16 @@ class MercadoPagoController extends Controller
                 ],
                 "auto_return" => "approved", // Redirige automáticamente cuando el pago es aprobado
                 "external_reference" => (string) $quote->id, // Para identificar el pago en el webhook
-            ]);
+            ];
+
+            if ($request->user() && $request->user()->email) {
+                $preferenceParams["payer"] = [
+                    "email" => $request->user()->email,
+                    "name" => $request->user()->name ?? 'Cliente'
+                ];
+            }
+
+            $preference = $client->create($preferenceParams);
 
             return response()->json([
                 'id' => $preference->id,
