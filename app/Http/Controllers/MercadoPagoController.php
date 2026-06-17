@@ -25,14 +25,16 @@ class MercadoPagoController extends Controller
             // Configurar URLs de retorno a nuestro frontend
             $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
 
+            $total = (float) str_replace(['$', ',', ' '], '', $quote->total);
+
             $preference = $client->create([
                 "items" => [
                     [
-                        "id" => $quote->id,
+                        "id" => (string) $quote->id,
                         "title" => "Cotización #" . ($quote->folio ?? $quote->id),
                         "description" => "Pago de servicio de mantenimiento/reparación",
                         "quantity" => 1,
-                        "unit_price" => (float) $quote->total,
+                        "unit_price" => $total,
                         "currency_id" => "MXN"
                     ]
                 ],
@@ -51,8 +53,14 @@ class MercadoPagoController extends Controller
                 'sandbox_init_point' => $preference->sandbox_init_point // URL para pruebas
             ]);
             
+        } catch (\MercadoPago\Exceptions\MPApiException $e) {
+            $apiResponse = $e->getApiResponse();
+            return response()->json([
+                'error' => 'Error de la API de MercadoPago', 
+                'details' => $apiResponse ? $apiResponse->getContent() : $e->getMessage()
+            ], 500);
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al crear la preferencia de pago', 'details' => $e->getMessage()], 500);
+            return response()->json(['error' => 'Error interno', 'details' => $e->getMessage()], 500);
         }
     }
 
