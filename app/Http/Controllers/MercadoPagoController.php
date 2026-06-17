@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Quote;
+use App\Models\User;
+use App\Notifications\MercadoPagoPaymentReceived;
 use MercadoPago\Client\Preference\PreferenceClient;
 use MercadoPago\MercadoPagoConfig;
 
@@ -99,6 +101,19 @@ class MercadoPagoController extends Controller
                         if ($payment->status === 'approved') {
                             $quote->status = 'Pagado';
                             $quote->save();
+
+                            // Notificar al Admin
+                            $admin = User::where('role_id', 1)->first();
+                            if ($admin) {
+                                $admin->notify(new MercadoPagoPaymentReceived($quote));
+                            }
+                            // Notificar al Cliente
+                            if ($quote->cliente_user_id) {
+                                $clienteUser = User::find($quote->cliente_user_id);
+                                if ($clienteUser) {
+                                    $clienteUser->notify(new MercadoPagoPaymentReceived($quote));
+                                }
+                            }
                         } elseif ($payment->status === 'in_process') {
                             // Si el pago está en revisión (por ejemplo pago en efectivo OXXO pendiente)
                             $quote->status = 'Pago en Revisión';
