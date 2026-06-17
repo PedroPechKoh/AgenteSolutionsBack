@@ -27,7 +27,7 @@ class MercadoPagoController extends Controller
             // Asegurar que no termine en slash
             $frontendUrl = rtrim($frontendUrl, '/');
 
-            $total = (float) str_replace(['$', ',', ' '], '', $quote->total);
+            $total = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
 
             $preference = $client->create([
                 "items" => [
