@@ -19,7 +19,7 @@ class MercadoPagoController extends Controller
 
     public function createPreference(Request $request, $id)
     {
-        $quote = Quote::findOrFail($id);
+        $quote = Quote::with(['service.property.client', 'workOrder.property.client'])->findOrFail($id);
 
         try {
             $client = new PreferenceClient();
@@ -31,11 +31,16 @@ class MercadoPagoController extends Controller
 
             $total = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
 
+            $clientModel = $quote->service?->property?->client ?? $quote->workOrder?->property?->client ?? null;
+            $propertyName = $quote->service?->property?->property_name ?? $quote->workOrder?->property?->property_name ?? 'N/A';
+            $clientName = $clientModel->name ?? 'Cliente';
+            $title = "Cotización de la propiedad $propertyName de $clientName";
+
             $preferenceParams = [
                 "items" => [
                     [
                         "id" => (string) $quote->id,
-                        "title" => "Cotización #" . ($quote->folio ?? $quote->id),
+                        "title" => $title,
                         "description" => "Pago de servicio de mantenimiento/reparación",
                         "quantity" => 1,
                         "unit_price" => $total,
