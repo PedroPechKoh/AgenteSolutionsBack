@@ -22,6 +22,7 @@ use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\NewWorkOrderNotification;
 use App\Models\WorkOrder;
+use App\Http\Controllers\MercadoPagoController;
 
 // ========================================================
 // 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
@@ -29,6 +30,9 @@ use App\Models\WorkOrder;
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
+
+// Webhook de MercadoPago (Público para que MP pueda avisarnos del pago)
+Route::post('/mercadopago/webhook', [MercadoPagoController::class, 'webhook']);
 
 
 // 🧹 RUTA DE EMERGENCIA (Temporalmente Pública para facilitar el Reset)
@@ -323,6 +327,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Pagos de Cotizaciones
     Route::post('/cotizaciones/{id}/pago', [QuoteController::class, 'uploadPaymentReceipt']);
     Route::post('/cotizaciones/{id}/validar-pago', [QuoteController::class, 'validatePayment']);
+    Route::post('/cotizaciones/{id}/mercadopago/preference', [MercadoPagoController::class, 'createPreference']);
 
 
 
