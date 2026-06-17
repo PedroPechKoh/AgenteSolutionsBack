@@ -23,7 +23,9 @@ class MercadoPagoController extends Controller
             $client = new PreferenceClient();
 
             // Configurar URLs de retorno a nuestro frontend
-            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+            $frontendUrl = $request->header('origin') ?? env('FRONTEND_URL', 'https://agentesolutions-production.up.railway.app');
+            // Asegurar que no termine en slash
+            $frontendUrl = rtrim($frontendUrl, '/');
 
             $total = (float) str_replace(['$', ',', ' '], '', $quote->total);
 
