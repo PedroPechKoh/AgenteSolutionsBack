@@ -137,4 +137,62 @@ class MercadoPagoController extends Controller
         // Siempre debemos responder con 200 OK a MercadoPago para que sepa que recibimos la notificación
         return response()->json(['status' => 'success'], 200);
     }
+
+    public function verifyPayment(Request $request)
+    {
+        $quoteId = $request->input('quote_id');
+        if (!$quoteId) {
+            return response()->json(['error' => 'quote_id is required'], 400);
+        }
+
+        $quote = Quote::find($quoteId);
+        if (!$quote) {
+            return response()->json(['error' => 'Quote not found'], 404);
+        }
+
+        // Si ya está pagado, retornamos success
+        if ($quote->status === 'Pagado') {
+            return response()->json(['status' => 'success', 'already_paid' => true]);
+        }
+
+        try {
+            // Buscar pagos recientes en MercadoPago con este external_reference
+            $paymentClient = new \MercadoPago\Client\Payment\PaymentClient();
+            $search = $paymentClient->search([
+                "external_reference" => (string) $quote->id,
+                "status" => "approved"
+            ]);
+
+            if ($search && !empty($search->results)) {
+                $payment = $search->results[0];
+                
+                $quote->status = 'Pagado';
+                $quote->save();
+
+                // Notificar
+                $admin = User::where('role_id', 1)->first();
+                if ($admin) {
+                    $admin->notify(new MercadoPagoPaymentReceived($quote));
+                }
+
+                // Intentar notificar al cliente navegando relaciones si es posible
+                $quote->load(['service.property.client', 'workOrder.property.client']);
+                $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
+                if ($cliente && $cliente->user_id) {
+                    $clienteUser = User::find($cliente->user_id);
+                    if ($clienteUser) {
+                        $clienteUser->notify(new MercadoPagoPaymentReceived($quote));
+                    }
+                }
+
+                return response()->json(['status' => 'success', 'verified' => true]);
+            }
+
+            return response()->json(['status' => 'pending']);
+
+        } catch (\Exception $e) {
+            \Log::error('Error verificando pago manualmente: ' . $e->getMessage());
+            return response()->json(['error' => 'Verification failed', 'details' => $e->getMessage()], 500);
+        }
+    }
 }

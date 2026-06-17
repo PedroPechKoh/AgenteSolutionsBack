@@ -33,6 +33,7 @@ Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
 
 // Webhook de MercadoPago (Público para que MP pueda avisarnos del pago)
 Route::post('/mercadopago/webhook', [MercadoPagoController::class, 'webhook']);
+Route::post('/mercadopago/verify', [MercadoPagoController::class, 'verifyPayment']);
 
 
 // 🧹 RUTA DE EMERGENCIA (Temporalmente Pública para facilitar el Reset)
