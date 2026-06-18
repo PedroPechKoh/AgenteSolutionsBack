@@ -83,6 +83,43 @@ class MercadoPagoController extends Controller
         }
     }
 
+    /**
+     * Extrae los datos relevantes del pago para guardar como comprobante.
+     */
+    private function buildPaymentData($payment): array
+    {
+        $card = $payment->card ?? null;
+        $paymentMethodId = $payment->payment_method_id ?? 'desconocido';
+        $paymentTypeId = $payment->payment_type_id ?? 'desconocido';
+        $lastFourDigits = $card ? ($card->last_four_digits ?? null) : null;
+        $cardHolder = $card ? ($card->cardholder->name ?? null) : null;
+        $brand = $payment->payment_method_id ?? null;
+
+        // Formatear tipo de pago amigable
+        $paymentLabel = match($paymentTypeId) {
+            'credit_card' => 'Tarjeta de Crédito',
+            'debit_card'  => 'Tarjeta de Débito',
+            'account_money' => 'Saldo MercadoPago',
+            'bank_transfer' => 'Transferencia Bancaria',
+            'ticket' => 'Efectivo (OXXO/CoDi)',
+            default => ucfirst($paymentTypeId)
+        };
+
+        return [
+            'mp_payment_id'     => $payment->id,
+            'status'            => $payment->status,
+            'amount'            => $payment->transaction_amount,
+            'currency'          => $payment->currency_id ?? 'MXN',
+            'payment_type'      => $paymentLabel,
+            'payment_method'    => strtoupper($brand ?? ''),
+            'last_four_digits'  => $lastFourDigits,
+            'card_holder'       => $cardHolder,
+            'payer_email'       => $payment->payer->email ?? null,
+            'date_approved'     => $payment->date_approved ?? null,
+            'date_created'      => $payment->date_created ?? null,
+        ];
+    }
+
     public function webhook(Request $request)
     {
         // MP puede enviar 'type' o 'topic', y el ID puede estar en 'data.id' o 'id'
@@ -106,6 +143,7 @@ class MercadoPagoController extends Controller
                         // Si el pago fue aprobado, marcamos la cotización como Pagado
                         if ($payment->status === 'approved') {
                             $quote->status = 'Pagado';
+                            $quote->mp_payment_data = $this->buildPaymentData($payment);
                             $quote->save();
 
                             // Notificar al Admin
@@ -152,13 +190,12 @@ class MercadoPagoController extends Controller
 
         // Si ya está pagado, retornamos success de inmediato
         if ($quote->status === 'Pagado') {
-            return response()->json(['status' => 'success', 'already_paid' => true]);
+            return response()->json(['status' => 'success', 'already_paid' => true, 'mp_payment_data' => $quote->mp_payment_data]);
         }
 
         try {
-            // Buscar pagos usando la API directa de MP con el external_reference
             $paymentClient = new \MercadoPago\Client\Payment\PaymentClient();
-            
+
             $searchRequest = new \MercadoPago\Net\MPSearchRequest(30, 0, [
                 "external_reference" => (string) $quote->id,
                 "status" => "approved"
@@ -166,13 +203,11 @@ class MercadoPagoController extends Controller
 
             $searchResult = $paymentClient->search($searchRequest);
 
-            $found = false;
             if ($searchResult && !empty($searchResult->results)) {
-                $found = true;
-            }
+                $payment = $searchResult->results[0];
 
-            if ($found) {
                 $quote->status = 'Pagado';
+                $quote->mp_payment_data = $this->buildPaymentData($payment);
                 $quote->save();
 
                 // Notificar al Admin
@@ -191,14 +226,13 @@ class MercadoPagoController extends Controller
                     }
                 }
 
-                return response()->json(['status' => 'success', 'verified' => true]);
+                return response()->json(['status' => 'success', 'verified' => true, 'mp_payment_data' => $quote->mp_payment_data]);
             }
 
             return response()->json(['status' => 'pending']);
 
         } catch (\Exception $e) {
             \Log::error('Error verificando pago manualmente: ' . $e->getMessage());
-            // Retornar pending en vez de error para que el frontend no muestre error
             return response()->json(['status' => 'pending', 'debug' => $e->getMessage()]);
         }
     }

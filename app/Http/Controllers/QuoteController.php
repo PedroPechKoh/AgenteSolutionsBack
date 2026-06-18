@@ -257,6 +257,7 @@ class QuoteController extends Controller
                                           'evidence_photo_path' => $quote->evidence_photo_path,
                                           'payment_receipt_path' => $quote->payment_receipt_path,
                                           'payment_status' => $quote->payment_status,
+                                          'mp_payment_data' => $quote->mp_payment_data,
                                           'chat_history' => $quote->chat_history,
                                       ];
                                   });
