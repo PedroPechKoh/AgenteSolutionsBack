@@ -231,7 +231,17 @@ class QuoteController extends Controller
                                           'property_id' => $quote->property_id ?? $quote->service?->property_id ?? $quote->workOrder?->property_id ?? null,
                                           'service_id' => $quote->service_id,
                                           'work_order_id' => $quote->work_order_id,
-                                          'folio' => '#' . str_pad($quote->id, 4, '0', STR_PAD_LEFT),
+                                          'folio' => (function() use ($quote) {
+                                              $baseId = $quote->parent_id ?? $quote->id;
+                                              $suffix = '';
+                                              if ($quote->parent_id) {
+                                                  $childrenCount = \App\Models\Quote::where('parent_id', $quote->parent_id)
+                                                      ->where('id', '<=', $quote->id)
+                                                      ->count();
+                                                  $suffix = '-' . chr(64 + $childrenCount); // A, B, C...
+                                              }
+                                              return 'COT-' . str_pad($baseId, 3, '0', STR_PAD_LEFT) . $suffix;
+                                          })(),
                                           'cliente' => $client->name ?? 'Sin Cliente',
                                           'cliente_id' => $client->id ?? null,
                                           'cliente_user_id' => $client->user_id ?? null,
