@@ -649,6 +649,54 @@ class PropertyController extends Controller
     }
 
     // ---------------------------------------------------
+    // 9.5. ASIGNAR TÉCNICOS EN MASA A UN LOTE (BATCH)
+    // ---------------------------------------------------
+    public function assignBatchWorkOrders(Request $request, $batchId)
+    {
+        try {
+            $request->validate([
+                'tecnicos_ids' => 'required|array'
+            ]);
+
+            $workOrders = WorkOrder::with('property')->where('batch_id', $batchId)->get();
+
+            if ($workOrders->isEmpty()) {
+                return response()->json(['error' => 'No se encontraron órdenes para este lote'], 404);
+            }
+
+            foreach ($workOrders as $workOrder) {
+                // Sincronizar técnicos (pivot table)
+                $workOrder->technicians()->sync($request->tecnicos_ids);
+                
+                // Actualizar el campo backward-compatible tecnico_id
+                if (count($request->tecnicos_ids) > 0) {
+                    $workOrder->tecnico_id = $request->tecnicos_ids[0];
+                } else {
+                    $workOrder->tecnico_id = null;
+                }
+
+                $workOrder->save();
+
+                // Notificar a los técnicos asignados (se notifica por cada orden, o podríamos hacer una notificación global del lote)
+                // Por simplicidad reutilizaremos la lógica existente por orden
+                foreach ($request->tecnicos_ids as $tId) {
+                    $tecnico = User::find($tId);
+                    if ($tecnico) {
+                        Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Lote de órdenes de trabajo actualizado correctamente'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // ---------------------------------------------------
     // 10. OBTENER LEVANTAMIENTO/INVENTARIO COMPLETO (Para técnicos)
     // ---------------------------------------------------
     public function getPropertySurvey($id)

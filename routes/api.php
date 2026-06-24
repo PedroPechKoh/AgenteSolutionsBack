@@ -277,6 +277,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
     Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);
     Route::put('/work-orders/{id}/assign', [PropertyController::class, 'assignWorkOrder']);
+    Route::put('/work-orders/batch/{batchId}/assign', [PropertyController::class, 'assignBatchWorkOrders']);
     Route::get('/work-orders/global-stats', [PropertyController::class, 'getGlobalServiceStats']);
 
     // --- GESTIÓN DE ZONAS (NIVEL 3 y 4) ---
@@ -341,6 +342,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'zone' => 'required|string',
             'equipment' => 'nullable|string',
             'description' => 'required|string',
+            'batch_id' => 'nullable|string',
             'evidence_1' => 'nullable|file|image|max:5120',
             'evidence_2' => 'nullable|file|image|max:5120'
         ]);
@@ -367,6 +369,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'zone' => $request->zone,
             'equipment' => $request->equipment,
             'description' => $request->description,
+            'batch_id' => $request->batch_id,
             'evidence_path' => $path1,
             'evidence_path_2' => $path2,
             'status' => 'Por Hacer',

@@ -21,6 +21,7 @@ class WorkOrder extends Model
         'evidence_path_2',
         'status',
         'priority',
+        'batch_id',
         'tecnico_id',
         'custom_checklist',
         'scheduled_at'
