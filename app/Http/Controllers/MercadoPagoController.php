@@ -29,7 +29,32 @@ class MercadoPagoController extends Controller
             // Asegurar que no termine en slash
             $frontendUrl = rtrim($frontendUrl, '/');
 
-            $totalBase = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
+            $subtotalBase = (float) str_replace(['$', ',', ' '], '', $quote->total ?? $quote->estimated_amount ?? 0);
+            try {
+                $rawConcept = $quote->concept ?? $quote->concepto;
+                if ($rawConcept) {
+                    $detalle = is_string($rawConcept) ? json_decode($rawConcept, true) : $rawConcept;
+                    if (is_array($detalle)) {
+                        $suma = 0;
+                        foreach (($detalle['conceptos'] ?? $detalle['servicios'] ?? []) as $c) {
+                            $suma += ((float)($c['precio_u'] ?? $c['precio'] ?? 0)) * ((float)($c['cantidad'] ?? 1));
+                        }
+                        foreach (($detalle['materiales'] ?? []) as $m) {
+                            $suma += ((float)($m['costo_u'] ?? $m['precio'] ?? 0)) * ((float)($m['cantidad'] ?? 1));
+                        }
+                        if ($suma > 0) $subtotalBase = $suma;
+                    }
+                }
+            } catch (\Exception $e) {}
+
+            if ($subtotalBase > 0) {
+                $iva = $subtotalBase * 0.16;
+                $subConIva = $subtotalBase + $iva;
+                $comisionMP = ($subConIva * 0.0349 + 4) * 1.16;
+                $totalBase = round($subConIva + $comisionMP, 2);
+            } else {
+                $totalBase = 0;
+            }
 
             // Determinar etapa de pago
             $stage = $request->input('payment_stage', 'full'); // 'advance', 'remaining', 'full'
