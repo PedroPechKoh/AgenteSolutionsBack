@@ -244,7 +244,10 @@ class MercadoPagoController extends Controller
 
     public function verifyPayment(Request $request)
     {
-        $quoteId = $request->input('quote_id');
+        $quoteId   = $request->input('quote_id');
+        $stage     = $request->input('stage', 'full');
+        $paymentId = $request->input('payment_id'); // o collection_id
+
         if (!$quoteId) {
             return response()->json(['error' => 'quote_id is required'], 400);
         }
@@ -254,32 +257,68 @@ class MercadoPagoController extends Controller
             return response()->json(['error' => 'Quote not found'], 404);
         }
 
-        // Si ya está pagado, retornamos success de inmediato
-        if ($quote->status === 'Pagado') {
+        // Si ya está pagado en esa etapa, retornamos success de inmediato
+        if ($stage === 'advance' && $quote->advance_paid) {
+            return response()->json(['status' => 'success', 'already_paid' => true, 'stage' => 'advance']);
+        }
+        if ($stage === 'remaining' && $quote->remaining_paid) {
+            return response()->json(['status' => 'success', 'already_paid' => true, 'stage' => 'remaining']);
+        }
+        if ($stage === 'full' && $quote->status === 'Pagado') {
             return response()->json(['status' => 'success', 'already_paid' => true, 'mp_payment_data' => $quote->mp_payment_data]);
         }
 
         try {
             $paymentClient = new \MercadoPago\Client\Payment\PaymentClient();
+            $payment = null;
 
-            $searchRequest = new \MercadoPago\Net\MPSearchRequest(30, 0, [
-                "external_reference" => (string) $quote->id,
-                "status" => "approved"
-            ]);
+            // 1. Si enviaron un payment_id concreto, verificar ese pago primero
+            if ($paymentId && $paymentId !== 'null' && $paymentId !== 'undefined') {
+                try {
+                    $p = $paymentClient->get($paymentId);
+                    if ($p && $p->status === 'approved') {
+                        $payment = $p;
+                    }
+                } catch (\Exception $e) {}
+            }
 
-            $searchResult = $paymentClient->search($searchRequest);
+            // 2. Si no hubo payment_id o no fue approved, buscar por external_reference exacto (ej. "50|remaining")
+            if (!$payment) {
+                $extReferenceExact = $stage !== 'full' ? ($quote->id . '|' . $stage) : (string) $quote->id;
+                $searchRequest = new \MercadoPago\Net\MPSearchRequest(10, 0, [
+                    "external_reference" => $extReferenceExact,
+                    "status" => "approved"
+                ]);
 
-            if ($searchResult && !empty($searchResult->results)) {
-                $payment = $searchResult->results[0];
+                $searchResult = $paymentClient->search($searchRequest);
+                if ($searchResult && !empty($searchResult->results)) {
+                    $payment = $searchResult->results[0];
+                }
+            }
 
-                $quote->status = 'Pagado';
-                $quote->mp_payment_data = $this->buildPaymentData($payment);
+            if ($payment) {
+                $paymentData = $this->buildPaymentData($payment);
+
+                if ($stage === 'advance') {
+                    $quote->advance_paid    = true;
+                    $quote->advance_paid_at = now();
+                    $quote->advance_mp_data = $paymentData;
+                    $quote->status          = 'Anticipo Pagado (60%)';
+                } elseif ($stage === 'remaining') {
+                    $quote->remaining_paid    = true;
+                    $quote->remaining_paid_at = now();
+                    $quote->remaining_mp_data = $paymentData;
+                    $quote->status            = 'Pagado';
+                } else {
+                    $quote->mp_payment_data = $paymentData;
+                    $quote->status          = 'Pagado';
+                }
                 $quote->save();
 
-                // Notificar al Admin
-                $admin = User::where('role_id', 1)->first();
-                if ($admin) {
-                    $admin->notify(new MercadoPagoPaymentReceived($quote));
+                // Notificar a los Administradores (rol 0 o 1)
+                $admins = User::whereIn('role_id', [0, 1])->get();
+                foreach ($admins as $adm) {
+                    $adm->notify(new MercadoPagoPaymentReceived($quote));
                 }
 
                 // Notificar al Cliente navegando relaciones
@@ -292,7 +331,7 @@ class MercadoPagoController extends Controller
                     }
                 }
 
-                return response()->json(['status' => 'success', 'verified' => true, 'mp_payment_data' => $quote->mp_payment_data]);
+                return response()->json(['status' => 'success', 'verified' => true, 'stage' => $stage]);
             }
 
             return response()->json(['status' => 'pending']);
