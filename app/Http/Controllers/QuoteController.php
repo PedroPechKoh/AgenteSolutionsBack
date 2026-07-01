@@ -535,7 +535,7 @@ public function finalizarCotizacion(Request $request, $id)
     {
         try {
             $request->validate([
-                'cash_amount_type' => 'required|in:advance,full',
+                'cash_amount_type' => 'required|in:advance,remaining,full',
                 'cash_timing'      => 'required|in:immediate,on_completion',
             ]);
 
@@ -544,14 +544,20 @@ public function finalizarCotizacion(Request $request, $id)
             $quote->cash_amount_type = $request->cash_amount_type;
             $quote->cash_timing      = $request->cash_timing;
             $quote->payment_scheme   = 'cash';
-            $quote->status           = 'Pago en Efectivo Solicitado';
+            if ($request->cash_amount_type === 'remaining') {
+                $quote->status = 'Liquidación en Efectivo Solicitada (40%)';
+            } else {
+                $quote->status = 'Pago en Efectivo Solicitado';
+            }
             $quote->save();
 
-            // Calcular montos para referencia
+            // Calcular montos para referencia si no están fijados
             $total = (float) $quote->estimated_amount;
-            $quote->advance_amount   = round($total * 0.60, 2);
-            $quote->remaining_amount = round($total * 0.40, 2);
-            $quote->save();
+            if (!$quote->advance_amount) {
+                $quote->advance_amount   = round($total * 0.60, 2);
+                $quote->remaining_amount = round($total * 0.40, 2);
+                $quote->save();
+            }
 
             // Notificar a los Administradores (rol 0 o 1)
             $clientName = $request->user()?->first_name . ' ' . $request->user()?->last_name ?? 'Cliente';
