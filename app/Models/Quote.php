@@ -12,6 +12,15 @@ class Quote extends Model
         'concept' => 'array',
         'chat_history' => 'array',
         'mp_payment_data' => 'array',
+        'advance_mp_data' => 'array',
+        'remaining_mp_data' => 'array',
+        'advance_paid' => 'boolean',
+        'remaining_paid' => 'boolean',
+        'cash_requested' => 'boolean',
+        'cash_confirmed' => 'boolean',
+        'advance_paid_at' => 'datetime',
+        'remaining_paid_at' => 'datetime',
+        'cash_confirmed_at' => 'datetime',
     ];
 
     public function service()

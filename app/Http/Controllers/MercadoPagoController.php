@@ -29,32 +29,53 @@ class MercadoPagoController extends Controller
             // Asegurar que no termine en slash
             $frontendUrl = rtrim($frontendUrl, '/');
 
-            $total = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
+            $totalBase = (float) str_replace(['$', ',', ' '], '', $quote->estimated_amount);
+
+            // Determinar etapa de pago
+            $stage = $request->input('payment_stage', 'full'); // 'advance', 'remaining', 'full'
+
+            if ($stage === 'advance') {
+                $total = round($totalBase * 0.60, 2);
+                $stageLabel = 'Anticipo (60%)';
+                // Guardar montos calculados si aun no existen
+                if (!$quote->advance_amount) {
+                    $quote->advance_amount   = $total;
+                    $quote->remaining_amount = round($totalBase * 0.40, 2);
+                    $quote->payment_scheme   = 'split';
+                    $quote->save();
+                }
+            } elseif ($stage === 'remaining') {
+                $total = round($totalBase * 0.40, 2);
+                $stageLabel = 'Liquidación Finiquito (40%)';
+            } else {
+                $total = $totalBase;
+                $stageLabel = 'Pago Total';
+            }
 
             $clientModel = $quote->service?->property?->client ?? $quote->workOrder?->property?->client ?? null;
             $propertyName = $quote->service?->property?->property_name ?? $quote->workOrder?->property?->property_name ?? 'N/A';
             $clientName = $clientModel->name ?? 'Cliente';
-            $title = "Cotización de la propiedad $propertyName de $clientName";
+            $title = "{$stageLabel} - Cotización #{$quote->id} / {$propertyName}";
 
             $preferenceParams = [
                 "items" => [
                     [
-                        "id" => (string) $quote->id,
-                        "title" => $title,
+                        "id"          => (string) $quote->id,
+                        "title"       => $title,
                         "description" => "Pago de servicio de mantenimiento/reparación",
-                        "quantity" => 1,
-                        "unit_price" => $total,
+                        "quantity"    => 1,
+                        "unit_price"  => $total,
                         "currency_id" => "MXN"
                     ]
                 ],
                 "back_urls" => [
-                    "success" => $frontendUrl . "/vista-cotizaciones?payment_status=success&quote_id=" . $quote->id,
+                    "success" => $frontendUrl . "/vista-cotizaciones?payment_status=success&quote_id=" . $quote->id . "&stage={$stage}",
                     "failure" => $frontendUrl . "/vista-cotizaciones?payment_status=failure&quote_id=" . $quote->id,
                     "pending" => $frontendUrl . "/vista-cotizaciones?payment_status=pending&quote_id=" . $quote->id
                 ],
-                "auto_return" => "approved", // Redirige automáticamente cuando el pago es aprobado
-                "external_reference" => (string) $quote->id, // Para identificar el pago en el webhook
-                "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
+                "auto_return"        => "approved",
+                "external_reference" => $quote->id . '|' . $stage, // Include stage so webhook knows which payment it is
+                "notification_url"   => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
             ];
 
             if ($request->user() && $request->user()->email) {
@@ -140,10 +161,30 @@ class MercadoPagoController extends Controller
                     $quote = Quote::find($quoteId);
 
                     if ($quote) {
-                        // Si el pago fue aprobado, marcamos la cotización como Pagado
+                        // Si el pago fue aprobado, marcamos la cotización según la etapa
                         if ($payment->status === 'approved') {
-                            $quote->status = 'Pagado';
-                            $quote->mp_payment_data = $this->buildPaymentData($payment);
+                            // Separar quote_id y stage del external_reference
+                            $refParts = explode('|', $payment->external_reference ?? '');
+                            $stage    = $refParts[1] ?? 'full';
+
+                            $paymentData = $this->buildPaymentData($payment);
+
+                            if ($stage === 'advance') {
+                                $quote->advance_paid    = true;
+                                $quote->advance_paid_at = now();
+                                $quote->advance_mp_data = $paymentData;
+                                $quote->status          = 'Anticipo Pagado (60%)';
+                            } elseif ($stage === 'remaining') {
+                                $quote->remaining_paid    = true;
+                                $quote->remaining_paid_at = now();
+                                $quote->remaining_mp_data = $paymentData;
+                                $quote->status            = 'Pagado';
+                            } else {
+                                // Pago total (full)
+                                $quote->mp_payment_data = $paymentData;
+                                $quote->status          = 'Pagado';
+                            }
+
                             $quote->save();
 
                             // Notificar al Admin

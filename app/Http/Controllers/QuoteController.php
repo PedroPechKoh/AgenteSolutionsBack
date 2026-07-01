@@ -513,4 +513,93 @@ public function finalizarCotizacion(Request $request, $id)
             return response()->json(['error' => 'Error al validar el pago: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Cliente solicita pago en efectivo (anticipo o total, ahora o al finalizar).
+     */
+    public function solicitarEfectivo(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'cash_amount_type' => 'required|in:advance,full',
+                'cash_timing'      => 'required|in:immediate,on_completion',
+            ]);
+
+            $quote = Quote::findOrFail($id);
+            $quote->cash_requested   = true;
+            $quote->cash_amount_type = $request->cash_amount_type;
+            $quote->cash_timing      = $request->cash_timing;
+            $quote->payment_scheme   = 'cash';
+            $quote->status           = 'Pago en Efectivo Solicitado';
+            $quote->save();
+
+            // Calcular montos para referencia
+            $total = (float) $quote->estimated_amount;
+            $quote->advance_amount   = round($total * 0.60, 2);
+            $quote->remaining_amount = round($total * 0.40, 2);
+            $quote->save();
+
+            // Notificar al Admin
+            $clientName = $request->user()?->first_name . ' ' . $request->user()?->last_name ?? 'Cliente';
+            $admin = User::where('role_id', 1)->first();
+            if ($admin) {
+                $admin->notify(new \App\Notifications\CashPaymentRequested(
+                    $quote,
+                    trim($clientName),
+                    $request->cash_amount_type,
+                    $request->cash_timing
+                ));
+            }
+
+            return response()->json(['message' => 'Solicitud de pago en efectivo enviada.', 'quote' => $quote]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al solicitar pago en efectivo: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Admin confirma recepción del pago en efectivo.
+     */
+    public function confirmarEfectivo(Request $request, $id)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role_id, [0, 1])) {
+                return response()->json(['error' => 'No autorizado'], 403);
+            }
+
+            $quote = Quote::findOrFail($id);
+            $quote->cash_confirmed    = true;
+            $quote->cash_confirmed_at = now();
+            $quote->cash_confirmed_by = $user->id;
+
+            // Si el tipo de efectivo es anticipo, dejamos pendiente el restante
+            if ($quote->cash_amount_type === 'advance') {
+                $quote->advance_paid    = true;
+                $quote->advance_paid_at = now();
+                $quote->status          = 'Anticipo Pagado (60%)';
+            } else {
+                // Pago total en efectivo
+                $quote->advance_paid     = true;
+                $quote->advance_paid_at  = now();
+                $quote->remaining_paid   = true;
+                $quote->remaining_paid_at = now();
+                $quote->status           = 'Pagado (Efectivo)';
+            }
+
+            $quote->save();
+
+            // Notificar al Cliente
+            if ($quote->cliente_user_id) {
+                $clienteUser = User::find($quote->cliente_user_id);
+                if ($clienteUser) {
+                    $clienteUser->notify(new \App\Notifications\QuotePaymentValidated($quote));
+                }
+            }
+
+            return response()->json(['message' => 'Pago en efectivo confirmado.', 'quote' => $quote]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al confirmar pago en efectivo: ' . $e->getMessage()], 500);
+        }
+    }
 }
