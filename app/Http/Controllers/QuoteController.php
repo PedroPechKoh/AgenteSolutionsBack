@@ -616,4 +616,35 @@ public function finalizarCotizacion(Request $request, $id)
             return response()->json(['error' => 'Error al confirmar pago en efectivo: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Admin confirma recepción del 40% restante en efectivo.
+     */
+    public function confirmarEfectivoRestante(Request $request, $id)
+    {
+        try {
+            $user = auth()->user();
+            if (!$user || !in_array($user->role_id, [0, 1])) {
+                return response()->json(['error' => 'No autorizado'], 403);
+            }
+
+            $quote = Quote::findOrFail($id);
+            $quote->remaining_paid    = true;
+            $quote->remaining_paid_at = now();
+            $quote->cash_confirmed_by = $user->id; // Actualiza autorizador
+            $quote->status            = 'Pagado (Efectivo)';
+            $quote->save();
+
+            if ($quote->cliente_user_id) {
+                $clienteUser = User::find($quote->cliente_user_id);
+                if ($clienteUser) {
+                    $clienteUser->notify(new \App\Notifications\QuotePaymentValidated($quote));
+                }
+            }
+
+            return response()->json(['message' => 'Liquidación de 40% en efectivo confirmada.', 'quote' => $quote]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al confirmar 40% restante en efectivo: ' . $e->getMessage()], 500);
+        }
+    }
 }

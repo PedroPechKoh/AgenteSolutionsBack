@@ -332,6 +332,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/cotizaciones/{id}/mercadopago/preference', [MercadoPagoController::class, 'createPreference']);
     Route::post('/cotizaciones/{id}/solicitar-efectivo', [QuoteController::class, 'solicitarEfectivo']);
     Route::post('/cotizaciones/{id}/confirmar-efectivo', [QuoteController::class, 'confirmarEfectivo']);
+    Route::post('/cotizaciones/{id}/confirmar-efectivo-restante', [QuoteController::class, 'confirmarEfectivoRestante']);
 
 
 
