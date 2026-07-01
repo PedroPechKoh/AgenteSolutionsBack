@@ -23,6 +23,21 @@ class Quote extends Model
         'cash_confirmed_at' => 'datetime',
     ];
 
+    protected $appends = ['cash_confirmed_by_name'];
+
+    public function getCashConfirmedByNameAttribute()
+    {
+        if ($this->cash_confirmed_by && $this->cashConfirmedBy) {
+            return trim($this->cashConfirmedBy->first_name . ' ' . $this->cashConfirmedBy->last_name) ?: $this->cashConfirmedBy->name;
+        }
+        return null;
+    }
+
+    public function cashConfirmedBy()
+    {
+        return $this->belongsTo(User::class, 'cash_confirmed_by');
+    }
+
     public function service()
     {
         return $this->belongsTo(Service::class);

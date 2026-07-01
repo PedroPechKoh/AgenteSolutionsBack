@@ -205,7 +205,8 @@ class QuoteController extends Controller
                 'service.technicians',
                 'workOrder.property.client',
                 'workOrder.tecnico',
-                'workOrder.technicians'
+                'workOrder.technicians',
+                'cashConfirmedBy'
             ]);
 
             // Si es cliente (rol 3), filtrar por sus servicios o sus órdenes de trabajo
@@ -268,6 +269,19 @@ class QuoteController extends Controller
                                           'payment_receipt_path' => $quote->payment_receipt_path,
                                           'payment_status' => $quote->payment_status,
                                           'mp_payment_data' => $quote->mp_payment_data,
+                                          'advance_paid' => $quote->advance_paid,
+                                          'remaining_paid' => $quote->remaining_paid,
+                                          'advance_amount' => $quote->advance_amount,
+                                          'remaining_amount' => $quote->remaining_amount,
+                                          'advance_paid_at' => $quote->advance_paid_at,
+                                          'remaining_paid_at' => $quote->remaining_paid_at,
+                                          'cash_requested' => $quote->cash_requested,
+                                          'cash_confirmed' => $quote->cash_confirmed,
+                                          'cash_confirmed_at' => $quote->cash_confirmed_at,
+                                          'cash_confirmed_by' => $quote->cash_confirmed_by,
+                                          'cash_confirmed_by_name' => $quote->cash_confirmed_by_name,
+                                          'cash_amount_type' => $quote->cash_amount_type,
+                                          'cash_timing' => $quote->cash_timing,
                                           'chat_history' => $quote->chat_history,
                                       ];
                                   });
