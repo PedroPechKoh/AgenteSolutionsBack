@@ -539,10 +539,10 @@ public function finalizarCotizacion(Request $request, $id)
             $quote->remaining_amount = round($total * 0.40, 2);
             $quote->save();
 
-            // Notificar al Admin
+            // Notificar a los Administradores (rol 0 o 1)
             $clientName = $request->user()?->first_name . ' ' . $request->user()?->last_name ?? 'Cliente';
-            $admin = User::where('role_id', 1)->first();
-            if ($admin) {
+            $admins = User::whereIn('role_id', [0, 1])->get();
+            foreach ($admins as $admin) {
                 $admin->notify(new \App\Notifications\CashPaymentRequested(
                     $quote,
                     trim($clientName),
