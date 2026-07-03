@@ -457,6 +457,20 @@ class PropertyController extends Controller
     // ---------------------------------------------------
     public function updateWorkOrderStatus(Request $request, $id)
     {
+        if (is_string($id) && str_starts_with($id, 'batch_')) {
+            $batchId = str_replace('batch_', '', $id);
+            $workOrders = WorkOrder::with('property')->where('batch_id', $batchId)->get();
+            if ($workOrders->isEmpty()) {
+                return response()->json(['error' => 'No se encontraron órdenes para este lote'], 404);
+            }
+            foreach ($workOrders as $wo) {
+                $wo->status = $request->status;
+                $wo->updated_at = now();
+                $wo->save();
+            }
+            return response()->json(['success' => true, 'message' => 'Estado del lote actualizado correctamente']);
+        }
+
         try {
             $request->validate([
                 'status' => 'required|in:Por Hacer,En Proceso,Listo,Rechazado,Cancelado'
@@ -559,6 +573,11 @@ class PropertyController extends Controller
     // ---------------------------------------------------
     public function assignWorkOrder(Request $request, $id)
     {
+        if (is_string($id) && str_starts_with($id, 'batch_')) {
+            $batchId = str_replace('batch_', '', $id);
+            return $this->assignBatchWorkOrders($request, $batchId);
+        }
+
         try {
             $request->validate([
                 'tecnicos_ids' => 'sometimes|array',
@@ -655,7 +674,8 @@ class PropertyController extends Controller
     {
         try {
             $request->validate([
-                'tecnicos_ids' => 'required|array'
+                'tecnicos_ids' => 'sometimes|array',
+                'tecnico_id' => 'sometimes|exists:users,id'
             ]);
 
             $workOrders = WorkOrder::with('property')->where('batch_id', $batchId)->get();
@@ -665,24 +685,34 @@ class PropertyController extends Controller
             }
 
             foreach ($workOrders as $workOrder) {
-                // Sincronizar técnicos (pivot table)
-                $workOrder->technicians()->sync($request->tecnicos_ids);
-                
-                // Actualizar el campo backward-compatible tecnico_id
-                if (count($request->tecnicos_ids) > 0) {
-                    $workOrder->tecnico_id = $request->tecnicos_ids[0];
-                } else {
-                    $workOrder->tecnico_id = null;
+                if ($request->has('tecnicos_ids') && is_array($request->tecnicos_ids)) {
+                    $workOrder->technicians()->sync($request->tecnicos_ids);
+                    if (count($request->tecnicos_ids) > 0) {
+                        $workOrder->tecnico_id = $request->tecnicos_ids[0];
+                    } else {
+                        $workOrder->tecnico_id = null;
+                    }
+                } else if ($request->has('tecnico_id')) {
+                    $workOrder->tecnico_id = $request->tecnico_id;
+                    $workOrder->technicians()->sync([$request->tecnico_id]);
+                }
+
+                if ($request->has('custom_checklist')) {
+                    $workOrder->custom_checklist = $request->custom_checklist;
+                }
+
+                if ($request->has('scheduled_at')) {
+                    $workOrder->scheduled_at = $request->scheduled_at;
                 }
 
                 $workOrder->save();
 
-                // Notificar a los técnicos asignados (se notifica por cada orden, o podríamos hacer una notificación global del lote)
-                // Por simplicidad reutilizaremos la lógica existente por orden
-                foreach ($request->tecnicos_ids as $tId) {
-                    $tecnico = User::find($tId);
-                    if ($tecnico) {
-                        Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                if ($request->has('tecnicos_ids') && is_array($request->tecnicos_ids)) {
+                    foreach ($request->tecnicos_ids as $tId) {
+                        $tecnico = User::find($tId);
+                        if ($tecnico) {
+                            Notification::send($tecnico, new WorkOrderAssigned($workOrder));
+                        }
                     }
                 }
             }
