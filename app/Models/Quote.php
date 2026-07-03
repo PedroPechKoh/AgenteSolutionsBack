@@ -14,6 +14,8 @@ class Quote extends Model
         'mp_payment_data' => 'array',
         'advance_mp_data' => 'array',
         'remaining_mp_data' => 'array',
+        'related_service_ids' => 'array',
+        'is_unified_batch' => 'boolean',
         'advance_paid' => 'boolean',
         'remaining_paid' => 'boolean',
         'cash_requested' => 'boolean',

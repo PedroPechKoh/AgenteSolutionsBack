@@ -28,6 +28,13 @@ class QuoteController extends Controller
             $quote->service_id = $request->service_id;
             $quote->work_order_id = $request->work_order_id;
             $quote->type = $request->type;
+            if ($request->has('related_service_ids')) {
+                $relatedIds = is_string($request->related_service_ids) ? json_decode($request->related_service_ids, true) : $request->related_service_ids;
+                $quote->related_service_ids = is_array($relatedIds) ? $relatedIds : null;
+            }
+            if ($request->has('is_unified_batch')) {
+                $quote->is_unified_batch = filter_var($request->is_unified_batch, FILTER_VALIDATE_BOOLEAN);
+            }
             
             // Si el usuario es técnico (rol 2), el estado es "Pendiente de Admin"
             if ($user && $user->role_id === 2) {
@@ -307,14 +314,19 @@ class QuoteController extends Controller
                 $quote->observations = $quote->observations . "\n\n[MOTIVO RECHAZO]: " . $request->rejection_reason;
             }
 
-            // --- LÓGICA DE FLUJO: SI SE APRUEBA, ACTIVAMOS EL SERVICIO ---
+            // --- LÓGICA DE FLUJO: SI SE APRUEBA, ACTIVAMOS LOS SERVICIOS ---
             if ($request->status === 'Aprobado') {
-                $service = Service::find($quote->service_id);
-                if ($service) {
-                    $service->update([
-                        'status' => 'Pendiente de Pago', // El servicio espera pago
-                        'quote_approved' => true   // Marcamos que tiene cotización aceptada
-                    ]);
+                $serviceIds = [];
+                if ($quote->service_id) $serviceIds[] = $quote->service_id;
+                if (is_array($quote->related_service_ids)) $serviceIds = array_unique(array_merge($serviceIds, $quote->related_service_ids));
+                foreach ($serviceIds as $sId) {
+                    $s = Service::find($sId);
+                    if ($s) {
+                        $s->update([
+                            'status' => 'Pendiente de Pago',
+                            'quote_approved' => true
+                        ]);
+                    }
                 }
             }
 
@@ -496,19 +508,23 @@ public function finalizarCotizacion(Request $request, $id)
             $quote->status = 'Pagado';
             $quote->save();
 
-            // Activar el servicio ligado a Programado
-            $service = Service::find($quote->service_id);
-            if ($service) {
-                $service->update([
-                    'status' => 'Programado',
-                    'scheduled_at' => now(), // o usar otro si aplica
-                ]);
+            // Activar los servicios ligados a Programado
+            $serviceIds = [];
+            if ($quote->service_id) $serviceIds[] = $quote->service_id;
+            if (is_array($quote->related_service_ids)) $serviceIds = array_unique(array_merge($serviceIds, $quote->related_service_ids));
+            foreach ($serviceIds as $sId) {
+                $service = Service::find($sId);
+                if ($service) {
+                    $service->update([
+                        'status' => 'Programado',
+                        'scheduled_at' => now(),
+                    ]);
 
-                // Si tiene work_order, pasarlo a En Proceso o Listo para Asignar
-                $workOrder = WorkOrder::where('service_id', $service->id)->first();
-                if ($workOrder && $workOrder->status === 'Pendiente') {
-                    $workOrder->status = 'Asignado'; // O algo equivalente según el flujo de work orders
-                    $workOrder->save();
+                    $workOrder = WorkOrder::where('service_id', $service->id)->first();
+                    if ($workOrder && $workOrder->status === 'Pendiente') {
+                        $workOrder->status = 'Asignado';
+                        $workOrder->save();
+                    }
                 }
             }
 
@@ -628,6 +644,22 @@ public function finalizarCotizacion(Request $request, $id)
             }
 
             $quote->save();
+
+            // Activar los servicios vinculados a Programado
+            $serviceIds = [];
+            if ($quote->service_id) $serviceIds[] = $quote->service_id;
+            if (is_array($quote->related_service_ids)) $serviceIds = array_unique(array_merge($serviceIds, $quote->related_service_ids));
+            foreach ($serviceIds as $sId) {
+                $service = Service::find($sId);
+                if ($service) {
+                    $service->update(['status' => 'Programado', 'scheduled_at' => now()]);
+                    $workOrder = WorkOrder::where('service_id', $service->id)->first();
+                    if ($workOrder && $workOrder->status === 'Pendiente') {
+                        $workOrder->status = 'Asignado';
+                        $workOrder->save();
+                    }
+                }
+            }
 
             // Notificar al Cliente
             if ($quote->cliente_user_id) {
