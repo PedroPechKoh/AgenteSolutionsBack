@@ -551,13 +551,33 @@ public function finalizarCotizacion(Request $request, $id)
             }
             $quote->save();
 
-            // Calcular montos para referencia si no están fijados
-            $total = (float) $quote->estimated_amount;
-            if (!$quote->advance_amount) {
-                $quote->advance_amount   = round($total * 0.60, 2);
-                $quote->remaining_amount = round($total * 0.40, 2);
-                $quote->save();
+            // Calcular montos de efectivo (subtotal + 16% IVA solamente, sin comisiones de MercadoPago)
+            $subtotalBase = 0;
+            try {
+                if ($quote->concept) {
+                    $detalle = is_string($quote->concept) ? json_decode($quote->concept, true) : $quote->concept;
+                    if (is_array($detalle)) {
+                        $suma = 0;
+                        foreach (($detalle['conceptos'] ?? $detalle['servicios'] ?? []) as $c) {
+                            $suma += ((float)($c['precio_u'] ?? $c['precio'] ?? 0)) * ((float)($c['cantidad'] ?? 1));
+                        }
+                        foreach (($detalle['materiales'] ?? []) as $m) {
+                            $suma += ((float)($m['costo_u'] ?? $m['precio'] ?? 0)) * ((float)($m['cantidad'] ?? 1));
+                        }
+                        if ($suma > 0) $subtotalBase = $suma;
+                    }
+                }
+            } catch (\Exception $e) {}
+
+            $totalEfectivo = $subtotalBase > 0 ? round($subtotalBase * 1.16, 2) : (float) $quote->estimated_amount;
+
+            if ($request->cash_amount_type === 'remaining') {
+                $quote->remaining_amount = round($totalEfectivo * 0.40, 2);
+            } elseif (!$quote->advance_amount || $request->cash_amount_type === 'advance') {
+                $quote->advance_amount   = round($totalEfectivo * 0.60, 2);
+                $quote->remaining_amount = round($totalEfectivo * 0.40, 2);
             }
+            $quote->save();
 
             // Notificar a los Administradores (rol 0 o 1)
             $clientName = $request->user()?->first_name . ' ' . $request->user()?->last_name ?? 'Cliente';
