@@ -16,6 +16,47 @@ class QuoteController extends Controller
     public function store(Request $request)
     {
         try {
+            // Normalización inteligente de work_order_id y service_id (soporte para batch_ y reasignación cruzada)
+            if ($request->filled('work_order_id')) {
+                $val = $request->input('work_order_id');
+                if (is_string($val) && str_starts_with($val, 'batch_')) {
+                    $batchId = str_replace('batch_', '', $val);
+                    $firstOrder = \App\Models\WorkOrder::where('batch_id', $batchId)->first();
+                    if ($firstOrder) {
+                        $allIds = \App\Models\WorkOrder::where('batch_id', $batchId)->pluck('id')->toArray();
+                        $request->merge([
+                            'work_order_id' => $firstOrder->id,
+                            'related_service_ids' => $request->has('related_service_ids') ? $request->related_service_ids : $allIds,
+                            'is_unified_batch' => true
+                        ]);
+                    } else {
+                        $request->merge(['work_order_id' => null]);
+                    }
+                } elseif (!\App\Models\WorkOrder::where('id', $val)->exists()) {
+                    if (\App\Models\Service::where('id', $val)->exists() && !$request->filled('service_id')) {
+                        $request->merge([
+                            'service_id' => $val,
+                            'work_order_id' => null
+                        ]);
+                    } else {
+                        $request->merge(['work_order_id' => null]);
+                    }
+                }
+            }
+            if ($request->filled('service_id')) {
+                $valServ = $request->input('service_id');
+                if (!\App\Models\Service::where('id', $valServ)->exists()) {
+                    if (\App\Models\WorkOrder::where('id', $valServ)->exists() && !$request->filled('work_order_id')) {
+                        $request->merge([
+                            'work_order_id' => $valServ,
+                            'service_id' => null
+                        ]);
+                    } else {
+                        $request->merge(['service_id' => null]);
+                    }
+                }
+            }
+
             // Validamos lo básico
             $request->validate([
                 'service_id' => 'nullable|exists:services,id',
