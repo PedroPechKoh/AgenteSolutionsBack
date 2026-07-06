@@ -608,7 +608,7 @@ public function finalizarCotizacion(Request $request, $id)
             }
             $quote->save();
 
-            // Calcular montos de efectivo (subtotal + 16% IVA solamente, sin comisiones de MercadoPago)
+            // Calcular monto final (subtotal + 16% IVA + comisión MercadoPago) para que coincida exactamente en pago online y en efectivo
             $subtotalBase = 0;
             try {
                 if ($quote->concept) {
@@ -626,13 +626,19 @@ public function finalizarCotizacion(Request $request, $id)
                 }
             } catch (\Exception $e) {}
 
-            $totalEfectivo = $subtotalBase > 0 ? round($subtotalBase * 1.16, 2) : (float) $quote->estimated_amount;
+            if ($subtotalBase > 0) {
+                $subConIva = $subtotalBase * 1.16;
+                $comisionMP = ($subConIva * 0.0349 + 4) * 1.16;
+                $totalFinal = round($subConIva + $comisionMP, 2);
+            } else {
+                $totalFinal = (float) $quote->estimated_amount;
+            }
 
             if ($request->cash_amount_type === 'remaining') {
-                $quote->remaining_amount = round($totalEfectivo * 0.40, 2);
+                $quote->remaining_amount = round($totalFinal * 0.40, 2);
             } elseif (!$quote->advance_amount || $request->cash_amount_type === 'advance') {
-                $quote->advance_amount   = round($totalEfectivo * 0.60, 2);
-                $quote->remaining_amount = round($totalEfectivo * 0.40, 2);
+                $quote->advance_amount   = round($totalFinal * 0.60, 2);
+                $quote->remaining_amount = round($totalFinal * 0.40, 2);
             }
             $quote->save();
 
