@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\TenantScoped;
 
 class Service extends Model
 {
-    use HasFactory;
+    use HasFactory, TenantScoped;
     protected $fillable = [
+        'tenant_id',
         'property_id',
         'property_area_id',
         'requested_by',

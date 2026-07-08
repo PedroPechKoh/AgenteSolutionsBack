@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -17,11 +18,29 @@ class AuthController extends Controller
             'email' => 'required|string|email|max:191|unique:users',
             'password' => 'required|string|min:6',
             'role_id' => 'required|integer',
-            'phone_number' => 'nullable|string|max:20|unique:users,phone_number'
+            'phone_number' => 'nullable|string|max:20|unique:users,phone_number',
+            'company_code' => 'nullable|string',
+            'tenant_id' => 'nullable|integer'
         ], [
             'email.unique' => 'Este correo electrónico ya está registrado en otra cuenta.',
             'phone_number.unique' => 'Este número de teléfono ya está registrado en otra cuenta.'
         ]);
+
+        // Buscar tenant por código o ID
+        $tenantId = $request->tenant_id ?? null;
+        if (!empty($request->company_code)) {
+            $t = Tenant::where('code', $request->company_code)
+                       ->orWhere('phone', $request->company_code)
+                       ->first();
+            if ($t) {
+                $tenantId = $t->id;
+            }
+        }
+
+        // Si es Técnico (rol 2), entra en sala de espera inactivo
+        $isTechnician = ($request->role_id == 2);
+        $approvalStatus = $isTechnician ? 'pending' : 'approved';
+        $isActive = $isTechnician ? 0 : 1;
 
         // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
@@ -30,9 +49,20 @@ class AuthController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role_id' => $request->role_id,
+            'tenant_id' => $tenantId,
+            'approval_status' => $approvalStatus,
             'phone_number' => $request->phone_number ?? null,
-            'is_active' => 1
+            'is_active' => $isActive
         ]);
+
+        if ($isTechnician) {
+            return response()->json([
+                'success' => true,
+                'status' => 'pending_approval',
+                'message' => 'Tu perfil ha sido registrado y está en espera de ser revisado y autorizado por el Administrador de tu empresa.',
+                'user' => $user
+            ], 201);
+        }
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
 
@@ -51,7 +81,8 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $user = User::where('email', $request->email)
+        $user = User::withoutGlobalScopes()
+                    ->where('email', $request->email)
                     ->orWhere('phone_number', $request->email)
                     ->first();
 
@@ -61,6 +92,12 @@ class AuthController extends Controller
             ], 401);
         }
 
+        if ($user->approval_status === 'pending') {
+            return response()->json([
+                'error' => 'Tu perfil de Técnico ha sido registrado y está en espera de ser revisado y autorizado por el Administrador de tu empresa.'
+            ], 403);
+        }
+
         if ($user->is_active == 0) {
             return response()->json([
                 'error' => 'No puedes acceder a tu cuenta, por favor contactate con el servicio de soporte.'
@@ -68,6 +105,7 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
+        $user->load('tenant');
 
         return response()->json([
             'success' => true,

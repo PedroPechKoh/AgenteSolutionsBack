@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\TenantScoped;
 
 class User extends Authenticatable
 {
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable, TenantScoped;
 
     /**
      * The attributes that are mass assignable.
@@ -18,6 +19,8 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'role_id',
+        'tenant_id',
+        'approval_status',
         'first_name',   // ✅ Reemplazamos 'name'
         'last_name',    // ✅ Agregamos 'last_name'
         'phone_number', // ✅ Agregamos teléfono por si acaso
