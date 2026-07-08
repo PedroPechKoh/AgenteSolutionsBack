@@ -9,10 +9,12 @@ class RoleSeeder extends Seeder
 {
     public function run(): void
 {
-    \DB::table('roles')->insert([
+    \DB::table('roles')->insertOrIgnore([
         ['id' => 0, 'created_at' => now(), 'updated_at' => now()], 
         ['id' => 1, 'created_at' => now(), 'updated_at' => now()], 
         ['id' => 2, 'created_at' => now(), 'updated_at' => now()], 
+        ['id' => 3, 'created_at' => now(), 'updated_at' => now()], 
+        ['id' => 4, 'created_at' => now(), 'updated_at' => now()], 
     ]);
 }
 }

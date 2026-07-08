@@ -47,6 +47,13 @@ class AuthController extends Controller
         // Por seguridad, si solicita ser Autónomo inicia como Cliente (3) hasta autorización del Root
         $roleToAssign = $isAutonomo ? 3 : $request->role_id;
 
+        // A PRUEBA DE BALAS: Asegurar que el rol exista en la tabla roles
+        \DB::table('roles')->insertOrIgnore([
+            'id' => $roleToAssign,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
         // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
             'first_name' => $request->first_name,

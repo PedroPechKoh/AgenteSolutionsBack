@@ -106,6 +106,12 @@ class TenantController extends Controller
 
         // Actualizar al dueño con el rol 4 (Autónomo) y asignarle su tenant_id
         if ($tenant->owner_user_id) {
+            DB::table('roles')->insertOrIgnore([
+                'id' => 4,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
             User::withoutGlobalScopes()->where('id', $tenant->owner_user_id)->update([
                 'role_id' => 4, // 4 = Autónomo
                 'tenant_id' => $tenant->id

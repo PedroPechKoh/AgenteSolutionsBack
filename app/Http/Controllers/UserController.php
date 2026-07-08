@@ -188,6 +188,13 @@ class UserController extends Controller
             return response()->json(['success' => false, 'message' => 'No puedes quitarle el rango de ROOT a este usuario.'], 403);
         }
 
+        // A PRUEBA DE BALAS: Asegurar que el ID de rol exista en la tabla roles (evita error 1452 Foreign Key en Railway)
+        DB::table('roles')->insertOrIgnore([
+            'id' => $request->role_id,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
         $user->role_id = $request->role_id;
 
         // Si se cambia a rol 4 (Autonomo), nos aseguramos de que tenga su Tenant
