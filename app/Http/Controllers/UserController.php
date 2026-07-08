@@ -233,7 +233,28 @@ class UserController extends Controller
     public function getUsuarios()
     {
         try {
-            $usuariosQuery = \App\Models\User::select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number')->get();
+            $currentUser = auth('sanctum')->user();
+
+            $usersQuery = \App\Models\User::select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number', 'tenant_id');
+            
+            if ($currentUser && $currentUser->role_id == 4) {
+                // Autónomo: solo ve a usuarios de su misma empresa (o sin tenant si están asignados a él) y a sí mismo. NUNCA Root (0) ni otros Autónomos (4)
+                $usersQuery->where(function($q) use ($currentUser) {
+                    $q->where('tenant_id', $currentUser->tenant_id)
+                      ->orWhere('id', $currentUser->id);
+                })->where('role_id', '!=', 0)
+                  ->where(function($q) use ($currentUser) {
+                      $q->where('role_id', '!=', 4)->orWhere('id', $currentUser->id);
+                  });
+            } elseif ($currentUser && $currentUser->role_id !== 0) {
+                // Si es un admin normal o técnico, no ve al Root ni a otros Autónomos de otras empresas
+                $usersQuery->where('role_id', '!=', 0);
+                if ($currentUser->tenant_id) {
+                    $usersQuery->where('tenant_id', $currentUser->tenant_id);
+                }
+            }
+
+            $usuariosQuery = $usersQuery->get();
 
             $usuarios = $usuariosQuery->map(function ($u) {
                 $fotoUrl = $u->profile_picture ? (str_starts_with($u->profile_picture, 'http') ? $u->profile_picture : asset('storage/' . $u->profile_picture)) : null;
@@ -250,9 +271,24 @@ class UserController extends Controller
                 ];
             });
 
-            $clientesQuery = DB::table('clients')
-                ->select('id', 'user_id', 'name', 'email', 'phone', 'profile_picture', 'is_active')
-                ->get();
+            // Evitar duplicados con la tabla clients
+            $userEmails = $usuariosQuery->pluck('email')->filter()->map(fn($e) => strtolower(trim($e)))->toArray();
+            $userIds = $usuariosQuery->pluck('id')->toArray();
+
+            $clientesDbQuery = DB::table('clients')
+                ->select('id', 'user_id', 'name', 'email', 'phone', 'profile_picture', 'is_active', 'tenant_id');
+
+            if ($currentUser && $currentUser->role_id == 4) {
+                $clientesDbQuery->where('tenant_id', $currentUser->tenant_id);
+            } elseif ($currentUser && $currentUser->role_id !== 0 && $currentUser->tenant_id) {
+                $clientesDbQuery->where('tenant_id', $currentUser->tenant_id);
+            }
+
+            $clientesQuery = $clientesDbQuery->get()->filter(function ($c) use ($userEmails, $userIds) {
+                if ($c->user_id && in_array($c->user_id, $userIds)) return false;
+                if ($c->email && in_array(strtolower(trim($c->email)), $userEmails)) return false;
+                return true;
+            });
 
             $clientes = $clientesQuery->map(function ($c) {
                 $fotoUrl = $c->profile_picture ? (str_starts_with($c->profile_picture, 'http') ? $c->profile_picture : asset('storage/' . $c->profile_picture)) : null;
@@ -269,7 +305,7 @@ class UserController extends Controller
                 ];
             });
 
-            $todosLosRegistros = $usuarios->concat($clientes);
+            $todosLosRegistros = $usuarios->concat($clientes)->values();
             return response()->json($todosLosRegistros, 200);
 
         } catch (\Exception $e) {
@@ -347,7 +383,16 @@ class UserController extends Controller
 
     public function getTecnicos()
     {
-        $tecnicos = User::where('role_id', 2)->get(['id', 'first_name', 'last_name', 'profile_picture']);
+        $currentUser = auth('sanctum')->user();
+        $query = User::where('role_id', 2);
+        
+        if ($currentUser && $currentUser->role_id == 4) {
+            $query->where('tenant_id', $currentUser->tenant_id);
+        } elseif ($currentUser && $currentUser->role_id !== 0 && $currentUser->tenant_id) {
+            $query->where('tenant_id', $currentUser->tenant_id);
+        }
+
+        $tecnicos = $query->get(['id', 'first_name', 'last_name', 'profile_picture']);
         
         $formatted = $tecnicos->map(function ($u) {
             $fotoUrl = $u->profile_picture ? (str_starts_with($u->profile_picture, 'http') ? $u->profile_picture : asset('storage/' . $u->profile_picture)) : null;

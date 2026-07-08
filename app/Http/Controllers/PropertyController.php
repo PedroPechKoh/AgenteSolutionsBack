@@ -155,6 +155,22 @@ class PropertyController extends Controller
                     // Si el usuario no tiene perfil, le devolvemos una lista vacía
                     return response()->json([], 200);
                 }
+            } elseif ($user->role_id == 4) {
+                // Autónomo: solo ve las propiedades de su empresa (o creadas por sus clientes)
+                $query->where(function ($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('client', function ($qc) use ($user) {
+                          $qc->where('tenant_id', $user->tenant_id);
+                      });
+                });
+            } elseif ($user->role_id !== 0 && $user->tenant_id) {
+                // Admin o técnico de un tenant
+                $query->where(function ($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('client', function ($qc) use ($user) {
+                          $qc->where('tenant_id', $user->tenant_id);
+                      });
+                });
             }
 
             $propiedades = $query->get();

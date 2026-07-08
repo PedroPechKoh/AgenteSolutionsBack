@@ -365,6 +365,24 @@ class ServiceController extends Controller
                 } else {
                     return response()->json([], 200); 
                 }
+            } elseif ($user && $user->role_id == 4) {
+                // Autónomo: solo ve servicios de propiedades de su empresa (o asignados a técnicos de su empresa)
+                $query->where(function ($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('property', function ($qp) use ($user) {
+                          $qp->where('tenant_id', $user->tenant_id);
+                      })
+                      ->orWhereHas('technician', function ($qt) use ($user) {
+                          $qt->where('tenant_id', $user->tenant_id);
+                      });
+                });
+            } elseif ($user && $user->role_id !== 0 && $user->tenant_id) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('property', function ($qp) use ($user) {
+                          $qp->where('tenant_id', $user->tenant_id);
+                      });
+                });
             }
 
             $servicios = $query->get();

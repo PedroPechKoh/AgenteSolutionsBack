@@ -419,16 +419,61 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::get('/work-orders/all', function () {
-        return \App\Models\WorkOrder::with(['property.client', 'tecnico'])->orderBy('created_at', 'desc')->get();
+        $user = auth('sanctum')->user();
+        $query = \App\Models\WorkOrder::with(['property.client', 'tecnico']);
+        
+        if ($user && $user->role_id == 4) {
+            $query->where(function($q) use ($user) {
+                $q->where('tenant_id', $user->tenant_id)
+                  ->orWhereHas('property', function($qp) use ($user) {
+                      $qp->where('tenant_id', $user->tenant_id);
+                  })
+                  ->orWhereHas('tecnico', function($qt) use ($user) {
+                      $qt->where('tenant_id', $user->tenant_id);
+                  });
+            });
+        } elseif ($user && $user->role_id !== 0 && $user->tenant_id) {
+            $query->where(function($q) use ($user) {
+                $q->where('tenant_id', $user->tenant_id)
+                  ->orWhereHas('property', function($qp) use ($user) {
+                      $qp->where('tenant_id', $user->tenant_id);
+                  });
+            });
+        }
+
+        return $query->orderBy('created_at', 'desc')->get();
     });
 
     // Nuevo: Obtener todos los reportes globales (Galería Global de Administradores)
     Route::get('/reportes-globales', function () {
-        return \App\Models\WorkReport::with([
-            'technician:id,first_name,last_name,profile_picture',
+        $user = auth('sanctum')->user();
+        $query = \App\Models\WorkReport::with([
+            'technician:id,first_name,last_name,profile_picture,tenant_id',
             'service.property.client',
             'workOrder.property.client'
-        ])->orderBy('created_at', 'desc')->get();
+        ]);
+
+        if ($user && $user->role_id == 4) {
+            $query->where(function($q) use ($user) {
+                $q->whereHas('technician', function($qt) use ($user) {
+                    $qt->where('tenant_id', $user->tenant_id)->orWhere('id', $user->id);
+                })->orWhereHas('service', function($qs) use ($user) {
+                    $qs->where('tenant_id', $user->tenant_id);
+                })->orWhereHas('workOrder', function($qw) use ($user) {
+                    $qw->where('tenant_id', $user->tenant_id);
+                });
+            });
+        } elseif ($user && $user->role_id !== 0 && $user->tenant_id) {
+            $query->where(function($q) use ($user) {
+                $q->whereHas('technician', function($qt) use ($user) {
+                    $qt->where('tenant_id', $user->tenant_id);
+                })->orWhereHas('service', function($qs) use ($user) {
+                    $qs->where('tenant_id', $user->tenant_id);
+                });
+            });
+        }
+
+        return $query->orderBy('created_at', 'desc')->get();
     });
 
 });

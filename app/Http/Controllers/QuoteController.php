@@ -266,6 +266,25 @@ class QuoteController extends Controller
                         $query->where('user_id', $user->id);
                     });
                 })->where('created_by_role', 'Admin'); // El cliente solo ve lo oficial del Admin
+            } elseif ($user && $user->role_id === 4) {
+                // Autónomo: solo ve cotizaciones de su empresa (o de propiedades de su empresa)
+                $quotesQuery = $quotesQuery->where(function($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('service.property', function ($query) use ($user) {
+                          $query->where('tenant_id', $user->tenant_id);
+                      })->orWhereHas('workOrder.property', function ($query) use ($user) {
+                          $query->where('tenant_id', $user->tenant_id);
+                      });
+                });
+            } elseif ($user && $user->role_id !== 0 && $user->tenant_id) {
+                $quotesQuery = $quotesQuery->where(function($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id)
+                      ->orWhereHas('service.property', function ($query) use ($user) {
+                          $query->where('tenant_id', $user->tenant_id);
+                      })->orWhereHas('workOrder.property', function ($query) use ($user) {
+                          $query->where('tenant_id', $user->tenant_id);
+                      });
+                });
             }
 
             $quotes = $quotesQuery->orderBy('created_at', 'desc')
