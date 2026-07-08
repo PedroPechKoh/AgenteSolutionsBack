@@ -224,17 +224,58 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/propiedades/{id}/shared-users', [PropertyController::class, 'getSharedUsers']);
 
     Route::get('/map', function () {
-        $propiedades = \Illuminate\Support\Facades\DB::table('properties')
+        $user = auth('sanctum')->user();
+
+        $query = \Illuminate\Support\Facades\DB::table('properties')
             ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
             ->leftJoin('users', 'clients.user_id', '=', 'users.id')
+            ->leftJoin('tenants as prop_tenant', 'properties.tenant_id', '=', 'prop_tenant.id')
+            ->leftJoin('tenants as client_tenant', 'clients.tenant_id', '=', 'client_tenant.id')
             ->whereNotNull('properties.coordinates')
-            ->where('properties.coordinates', '!=', '')
-            ->select('properties.id as prop_id', 'properties.address', 'properties.coordinates', 'clients.name', 'clients.phone', 'clients.id as client_id', 'clients.email', \Illuminate\Support\Facades\DB::raw('COALESCE(users.profile_picture, clients.profile_picture) as profile_picture'))
-            ->get();
+            ->where('properties.coordinates', '!=', '');
+
+        if ($user) {
+            if ($user->role_id == 4) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('properties.tenant_id', $user->tenant_id)
+                      ->orWhere('clients.tenant_id', $user->tenant_id);
+                });
+            } elseif ($user->role_id !== 0 && $user->tenant_id) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('properties.tenant_id', $user->tenant_id)
+                      ->orWhere('clients.tenant_id', $user->tenant_id);
+                });
+            } elseif ($user->role_id == 3) {
+                $cliente = \Illuminate\Support\Facades\DB::table('clients')->where('user_id', $user->id)->first();
+                if ($cliente) {
+                    $sharedPropertyIds = \Illuminate\Support\Facades\DB::table('property_shares')->where('client_id', $cliente->id)->pluck('property_id');
+                    $query->where(function ($q) use ($cliente, $sharedPropertyIds) {
+                        $q->where('properties.client_id', $cliente->id)
+                          ->orWhereIn('properties.id', $sharedPropertyIds);
+                    });
+                } else {
+                    return response()->json([]);
+                }
+            }
+        }
+
+        $propiedades = $query->select(
+            'properties.id as prop_id', 
+            'properties.address', 
+            'properties.coordinates', 
+            'clients.name', 
+            'clients.phone', 
+            'clients.id as client_id', 
+            'clients.email', 
+            \Illuminate\Support\Facades\DB::raw('COALESCE(users.profile_picture, clients.profile_picture) as profile_picture'),
+            \Illuminate\Support\Facades\DB::raw('COALESCE(prop_tenant.logo_url, client_tenant.logo_url) as tenant_logo_url'),
+            \Illuminate\Support\Facades\DB::raw('COALESCE(prop_tenant.name, client_tenant.name) as tenant_name')
+        )->get();
 
         $marcadoresBrutos = $propiedades->map(function ($prop) {
             $partes = explode(',', $prop->coordinates);
             $fotoUrl = $prop->profile_picture ? (str_starts_with($prop->profile_picture, 'http') ? $prop->profile_picture : asset('storage/' . $prop->profile_picture)) : null;
+            $tenantLogoUrl = $prop->tenant_logo_url ? (str_starts_with($prop->tenant_logo_url, 'http') ? $prop->tenant_logo_url : asset('storage/' . $prop->tenant_logo_url)) : null;
             
             return [
                 'id' => $prop->prop_id,
@@ -245,7 +286,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 'phone' => $prop->phone,
                 'picture' => $fotoUrl,
                 'client_id' => $prop->client_id,
-                'email' => $prop->email
+                'email' => $prop->email,
+                'tenant_logo_url' => $tenantLogoUrl,
+                'tenant_name' => $prop->tenant_name
             ];
         });
 
