@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
@@ -99,42 +100,27 @@ class UserController extends Controller
             $user = User::find($realId);
 
             if (!$user) {
-                return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
+                return response()->json(['success' => false, 'message' => 'Usuario no encontrado en la base de datos'], 404);
             }
 
-            if ($user->role_id === 0 && auth('sanctum')->id() !== $user->id) {
-                // Un root puede editarse a sí mismo, pero nadie más puede editar a un root.
-                return response()->json(['success' => false, 'message' => 'Acceso Denegado.'], 403);
-            }
-
-            $emailExists = User::where('email', $request->input('email'))->where('id', '!=', $user->id)->exists();
+            $emailExists = User::where('email', $request->input('email'))->where('id', '!=', $realId)->exists();
             if ($emailExists) {
-                return response()->json(['success' => false, 'message' => 'Este correo electrónico ya está registrado en otra cuenta.'], 422);
+                return response()->json(['success' => false, 'message' => 'Este correo electrónico ya está en uso por otro usuario.'], 422);
             }
 
             $phone = $request->input('phone_number');
-            // Quitamos la validación estricta de teléfono único para permitir cuentas de prueba con el mismo celular
-            /*
             if (!empty($phone)) {
-                $phoneExists = User::where('phone_number', $phone)->where('id', '!=', $user->id)->exists();
+                $phoneExists = User::where('phone_number', $phone)->where('id', '!=', $realId)->exists();
                 if ($phoneExists) {
-                    return response()->json(['success' => false, 'message' => 'Este número de teléfono ya está registrado en otra cuenta.'], 422);
+                    return response()->json(['success' => false, 'message' => 'Este número de teléfono ya está registrado por otro usuario.'], 422);
                 }
             }
-            */
 
             $user->first_name = $request->input('first_name');
-            $user->last_name = $request->input('last_name') ?: '';
+            $user->last_name = $request->input('last_name');
             $user->email = $request->input('email');
             $user->phone_number = $phone;
-
-            if ($request->filled('birth_date')) {
-                $user->birth_date = $request->input('birth_date');
-            }
-
-            if ($request->filled('password')) {
-                $user->password = bcrypt($request->input('password'));
-            }
+            $user->is_active = $request->input('is_active');
 
             if ($profilePicturePath) {
                 if ($user->profile_picture && !str_starts_with($user->profile_picture, 'http')) {
@@ -145,28 +131,21 @@ class UserController extends Controller
 
             $user->save();
 
-            // ✅ CORRECCIÓN: Si el usuario es cliente (role_id 3), actualizamos también la tabla 'clients'
-            if ($user->role_id == 3) {
-                DB::table('clients')->where('user_id', $user->id)->update([
-                    'name' => trim($user->first_name . ' ' . $user->last_name),
-                    'email' => $user->email,
-                    'phone' => $user->phone_number,
-                    'updated_at' => now(),
-                ]);
-            }
-
             $fotoUrl = $user->profile_picture
                 ? (str_starts_with($user->profile_picture, 'http') ? $user->profile_picture : asset('storage/' . $user->profile_picture))
                 : null;
 
             return response()->json([
                 'success' => true,
-                'message' => 'Expediente del usuario actualizado.',
+                'message' => 'Perfil de usuario actualizado con éxito.',
                 'new_picture_url' => $fotoUrl
             ], 200);
 
         } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => 'Error al actualizar: ' . $e->getMessage()], 500);
+            return response()->json([
+                'success' => false,
+                'message' => 'Error al actualizar: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -179,18 +158,26 @@ class UserController extends Controller
         // 1. Limpiamos el ID (quitamos el prefijo u_ si existe)
         $realId = str_replace('u_', '', $id);
 
-        // 2. Ajustamos la validación: permitimos 0 (Root), 1 (Admin), 2 (Tecnico), 3 (Cliente)
+        // 2. Ajustamos la validación: permitimos 0 (Root), 1 (Admin), 2 (Tecnico), 3 (Cliente), 4 (Autonomo)
         $request->validate([
-            'role_id' => 'required|integer|in:0,1,2,3'
+            'role_id' => 'required|integer|in:0,1,2,3,4'
         ]);
 
-        // 3. Si intentan cambiar el rol de un Cliente (tabla clients), manejamos el error
-        // ya que el rol de cliente usualmente es fijo o se maneja distinto.
+        $user = null;
         if (str_starts_with($id, 'c_')) {
-            return response()->json(['success' => false, 'message' => 'No se puede cambiar el rol directamente a un registro de la tabla Clientes.'], 400);
+            $realClientId = str_replace('c_', '', $id);
+            $clientObj = DB::table('clients')->where('id', $realClientId)->first();
+            if ($clientObj && $clientObj->user_id) {
+                $user = User::withoutGlobalScopes()->find($clientObj->user_id);
+            } elseif ($clientObj && $clientObj->email) {
+                $user = User::withoutGlobalScopes()->where('email', $clientObj->email)->first();
+            }
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Este cliente no tiene una cuenta de usuario asociada para cambiar de rol.'], 400);
+            }
+        } else {
+            $user = User::withoutGlobalScopes()->find($realId);
         }
-
-        $user = User::find($realId);
 
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
@@ -202,6 +189,31 @@ class UserController extends Controller
         }
 
         $user->role_id = $request->role_id;
+
+        // Si se cambia a rol 4 (Autonomo), nos aseguramos de que tenga su Tenant
+        if ($request->role_id == 4) {
+            $tenant = Tenant::where('owner_user_id', $user->id)->orWhere('email', $user->email)->first();
+            if (!$tenant) {
+                $nextId = (Tenant::max('id') ?? 0) + 1;
+                $code = 'AUT_' . str_pad($nextId, 2, '0', STR_PAD_LEFT);
+                $tenant = Tenant::create([
+                    'name' => 'Empresa de ' . trim($user->first_name . ' ' . $user->last_name),
+                    'code' => $code,
+                    'owner_user_id' => $user->id,
+                    'phone' => $user->phone_number,
+                    'email' => $user->email,
+                    'status' => 'active',
+                    'membership_type' => 'autonomo'
+                ]);
+            } else {
+                if ($tenant->status !== 'active') {
+                    $code = 'AUT_' . str_pad($tenant->id, 2, '0', STR_PAD_LEFT);
+                    $tenant->update(['status' => 'active', 'code' => $code]);
+                }
+            }
+            $user->tenant_id = $tenant->id;
+        }
+
         $user->save();
 
         return response()->json([
