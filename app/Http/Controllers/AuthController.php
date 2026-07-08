@@ -20,7 +20,8 @@ class AuthController extends Controller
             'role_id' => 'required|integer',
             'phone_number' => 'nullable|string|max:20|unique:users,phone_number',
             'company_code' => 'nullable|string',
-            'tenant_id' => 'nullable|integer'
+            'tenant_id' => 'nullable|integer',
+            'company_name' => 'nullable|string|max:191'
         ], [
             'email.unique' => 'Este correo electrónico ya está registrado en otra cuenta.',
             'phone_number.unique' => 'Este número de teléfono ya está registrado en otra cuenta.'
@@ -39,8 +40,12 @@ class AuthController extends Controller
 
         // Si es Técnico (rol 2), entra en sala de espera inactivo
         $isTechnician = ($request->role_id == 2);
+        $isAutonomo = ($request->role_id == 4 || !empty($request->company_name));
         $approvalStatus = $isTechnician ? 'pending' : 'approved';
         $isActive = $isTechnician ? 0 : 1;
+
+        // Por seguridad, si solicita ser Autónomo inicia como Cliente (3) hasta autorización del Root
+        $roleToAssign = $isAutonomo ? 3 : $request->role_id;
 
         // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
@@ -48,12 +53,24 @@ class AuthController extends Controller
             'last_name' => $request->last_name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role_id' => $request->role_id,
+            'role_id' => $roleToAssign,
             'tenant_id' => $tenantId,
             'approval_status' => $approvalStatus,
             'phone_number' => $request->phone_number ?? null,
             'is_active' => $isActive
         ]);
+
+        if ($isAutonomo) {
+            Tenant::create([
+                'name' => $request->company_name ?? ($request->first_name . ' ' . $request->last_name),
+                'code' => 'PENDING_' . time() . '_' . $user->id,
+                'owner_user_id' => $user->id,
+                'phone' => $user->phone_number,
+                'email' => $user->email,
+                'status' => 'pending_approval',
+                'membership_type' => 'autonomo'
+            ]);
+        }
 
         if ($isTechnician) {
             return response()->json([
