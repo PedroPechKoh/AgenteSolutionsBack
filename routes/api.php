@@ -168,6 +168,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- GESTIÓN DE AUTÓNOMOS Y MULTI-TENANT ---
     Route::post('/tenants/request-membership', [TenantController::class, 'requestMembership']);
+    Route::get('/tenants/my-membership-status', [TenantController::class, 'myMembershipStatus']);
     Route::get('/tenants/pending-memberships', [TenantController::class, 'pendingMemberships']);
     Route::post('/tenants/{id}/approve', [TenantController::class, 'approveTenant']);
     Route::post('/tenants/transfer-portfolio', [TenantController::class, 'transferPortfolio']);

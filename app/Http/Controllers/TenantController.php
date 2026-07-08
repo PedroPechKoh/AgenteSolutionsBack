@@ -30,6 +30,22 @@ class TenantController extends Controller
         ]);
     }
 
+    public function myMembershipStatus()
+    {
+        $user = auth()->user();
+        if (!$user) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        $pending = Tenant::where('owner_user_id', $user->id)->where('status', 'pending_approval')->first();
+        
+        return response()->json([
+            'success' => true,
+            'has_pending' => $pending ? true : false,
+            'tenant' => $pending
+        ]);
+    }
+
     /**
      * Solicitar membresía para convertirse en Autónomo (Empresa).
      */
@@ -46,6 +62,23 @@ class TenantController extends Controller
             return response()->json(['error' => 'No autorizado'], 401);
         }
 
+        // Si ya tiene una en espera de aprobación, la actualizamos para no duplicar
+        $existing = Tenant::where('owner_user_id', $user->id)->where('status', 'pending_approval')->first();
+        if ($existing) {
+            $existing->update([
+                'name' => $request->company_name,
+                'phone' => $request->phone ?? $user->phone_number,
+                'email' => $request->email ?? $user->email,
+                'membership_type' => $request->membership_type ?? 'autonomo'
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Solicitud de membresía actualizada. En espera de autorización del Root.',
+                'tenant' => $existing
+            ], 200);
+        }
+
         // Crear registro de tenant en estado pendiente
         // Generar un código temporal que se confirmará al autorizar
         $tempCode = 'PENDING_' . time() . '_' . $user->id;
@@ -57,7 +90,7 @@ class TenantController extends Controller
             'phone' => $request->phone ?? $user->phone_number,
             'email' => $request->email ?? $user->email,
             'status' => 'pending_approval',
-            'membership_type' => $request->membership_type ?? 'standard'
+            'membership_type' => $request->membership_type ?? 'autonomo'
         ]);
 
         return response()->json([
