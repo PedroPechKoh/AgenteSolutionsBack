@@ -21,7 +21,7 @@ class TenantController extends Controller
     public function listTenants()
     {
         $tenants = Tenant::where('status', 'active')
-            ->select('id', 'name', 'code', 'logo_url', 'phone', 'email')
+            ->select('id', 'name', 'code', 'logo_url', 'phone', 'email', 'owner_user_id')
             ->get();
 
         return response()->json([
@@ -37,12 +37,16 @@ class TenantController extends Controller
             return response()->json(['error' => 'No autorizado'], 401);
         }
 
-        $pending = Tenant::where('owner_user_id', $user->id)->where('status', 'pending_approval')->first();
+        $myTenant = Tenant::where('owner_user_id', $user->id)
+            ->orWhere('id', $user->tenant_id)
+            ->orderBy('id', 'desc')
+            ->first();
         
         return response()->json([
             'success' => true,
-            'has_pending' => $pending ? true : false,
-            'tenant' => $pending
+            'has_pending' => ($myTenant && $myTenant->status === 'pending_approval') ? true : false,
+            'tenant' => $myTenant,
+            'user' => $user
         ]);
     }
 
