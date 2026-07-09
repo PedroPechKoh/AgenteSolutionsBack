@@ -69,4 +69,9 @@ class User extends Authenticatable
         // logueado con este ID de usuario".
         return ['include_external_user_ids' => [(string) $this->id]];
     }
+
+    public function tenant()
+    {
+        return $this->belongsTo(\App\Models\Tenant::class, 'tenant_id');
+    }
 }

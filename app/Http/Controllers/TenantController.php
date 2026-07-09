@@ -222,7 +222,9 @@ class TenantController extends Controller
             $query->where('tenant_id', $user->tenant_id);
         }
 
-        $technicians = $query->select('id', 'first_name', 'last_name', 'email', 'phone_number', 'created_at', 'tenant_id')->get();
+        $technicians = $query->with('tenant:id,name,code')
+            ->select('id', 'first_name', 'last_name', 'email', 'phone_number', 'created_at', 'tenant_id', 'role_id', 'approval_status', 'is_active')
+            ->get();
 
         return response()->json([
             'success' => true,
