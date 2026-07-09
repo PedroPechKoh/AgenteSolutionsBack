@@ -333,6 +333,15 @@ class UserController extends Controller
                 return response()->json(['error' => 'Acceso Denegado: No se puede eliminar al ROOT'], 403);
             }
 
+            $currentUser = auth('sanctum')->user();
+            if ($usuario->role_id === 4 && (!$currentUser || $currentUser->role_id !== 0)) {
+                return response()->json(['error' => 'Acceso Denegado: Solo el ROOT puede eliminar usuarios Autónomos.'], 403);
+            }
+
+            if ($usuario->role_id === 4 && $usuario->tenant_id) {
+                \App\Models\Tenant::where('owner_user_id', $usuario->id)->delete();
+            }
+
             $usuario->delete();
             return response()->json(['message' => 'Usuario eliminado correctamente'], 200);
 

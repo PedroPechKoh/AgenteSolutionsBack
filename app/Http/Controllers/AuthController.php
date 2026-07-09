@@ -38,14 +38,19 @@ class AuthController extends Controller
             }
         }
 
-        // Si es Técnico (rol 2), entra en sala de espera inactivo
-        $isTechnician = ($request->role_id == 2);
-        $isAutonomo = ($request->role_id == 4 || !empty($request->company_name));
-        $approvalStatus = $isTechnician ? 'pending' : 'approved';
-        $isActive = $isTechnician ? 0 : 1;
+        $currentUser = auth('sanctum')->user();
+        $isRootOrAdmin = ($currentUser && in_array($currentUser->role_id, [0, 1])) || $request->boolean('from_admin');
 
-        // Por seguridad, si solicita ser Autónomo inicia como Cliente (3) hasta autorización del Root
-        $roleToAssign = $isAutonomo ? 3 : $request->role_id;
+        // Si es Técnico (rol 2), entra en sala de espera inactivo si no lo crea un Root o Admin
+        $isTechnician = ($request->role_id == 2);
+        $isAutonomo = ($request->role_id == 4);
+        $isRootReq = ($request->role_id == 0);
+
+        $approvalStatus = ($isTechnician && !$isRootOrAdmin) ? 'pending' : 'approved';
+        $isActive = ($isTechnician && !$isRootOrAdmin) ? 0 : 1;
+
+        // Por seguridad, si solicita ser Autónomo desde registro público sin sesión, inicia como Cliente (3) hasta autorización
+        $roleToAssign = ($isAutonomo && !$isRootOrAdmin && empty($request->company_code)) ? 3 : $request->role_id;
 
         // A PRUEBA DE BALAS: Asegurar que el rol exista en la tabla roles
         \DB::table('roles')->insertOrIgnore([
@@ -67,16 +72,32 @@ class AuthController extends Controller
             'is_active' => $isActive
         ]);
 
-        if ($isAutonomo) {
-            Tenant::create([
-                'name' => $request->company_name ?? ($request->first_name . ' ' . $request->last_name),
-                'code' => 'PENDING_' . time() . '_' . $user->id,
+        if ($roleToAssign == 4 || $isAutonomo) {
+            $customCode = !empty($request->company_code) ? trim($request->company_code) : ('AUT_' . time() . '_' . $user->id);
+            $companyName = !empty($request->company_name) ? trim($request->company_name) : ('Empresa de ' . trim($user->first_name . ' ' . $user->last_name));
+
+            $tenant = Tenant::create([
+                'name' => $companyName,
+                'code' => $customCode,
                 'owner_user_id' => $user->id,
                 'phone' => $user->phone_number,
                 'email' => $user->email,
-                'status' => 'pending_approval',
+                'status' => 'active',
                 'membership_type' => 'autonomo'
             ]);
+
+            $user->tenant_id = $tenant->id;
+            $user->role_id = 4;
+            $user->is_active = 1;
+            $user->approval_status = 'approved';
+            $user->save();
+        }
+
+        if ($roleToAssign == 0) {
+            $user->role_id = 0;
+            $user->is_active = 1;
+            $user->approval_status = 'approved';
+            $user->save();
         }
 
         if ($isTechnician) {
