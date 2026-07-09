@@ -10,6 +10,8 @@ use App\Models\WorkOrder;
 use App\Notifications\QuoteStatusUpdated;
 use App\Notifications\QuotePaymentReceived;
 use App\Notifications\QuotePaymentValidated;
+use App\Notifications\TechnicianQuoteSubmitted;
+use App\Notifications\TechnicianQuoteUpdated;
 
 class QuoteController extends Controller
 {
@@ -130,10 +132,32 @@ class QuoteController extends Controller
                 }
             }
 
-            // Notificar a los administradores si la crea un técnico
+            // Notificar a los administradores / autónomos si la crea un técnico
             if ($user && $user->role_id === 2) {
-                $admins = \App\Models\User::whereIn('role_id', [0, 1])->get();
-                \Illuminate\Support\Facades\Notification::send($admins, new \App\Notifications\TechnicianQuoteSubmitted($quote));
+                $tenantId = $quote->tenant_id ?? $user->tenant_id ?? null;
+                if (!$tenantId && $quote->service_id) {
+                    $service = \App\Models\Service::find($quote->service_id);
+                    $tenantId = $service->tenant_id ?? ($service->property ? $service->property->tenant_id : null) ?? null;
+                } elseif (!$tenantId && $quote->work_order_id) {
+                    $workOrder = \App\Models\WorkOrder::find($quote->work_order_id);
+                    $tenantId = $workOrder->tenant_id ?? ($workOrder->property ? $workOrder->property->tenant_id : null) ?? null;
+                }
+
+                if ($tenantId) {
+                    $destinatarios = \App\Models\User::whereIn('role_id', [0, 1, 4])
+                        ->where('tenant_id', $tenantId)
+                        ->get();
+                    if ($destinatarios->isEmpty()) {
+                        $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                    }
+                } else {
+                    $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->whereNull('tenant_id')->get();
+                    if ($destinatarios->isEmpty()) {
+                        $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                    }
+                }
+
+                \Illuminate\Support\Facades\Notification::send($destinatarios, new TechnicianQuoteSubmitted($quote));
             }
 
             // Solo notificar al cliente si la crea el Admin (rol 0 o 1)
@@ -222,7 +246,35 @@ class QuoteController extends Controller
 
             $quote->save();
 
-            // Notificar de nuevo si es necesario
+            // Notificar a los administradores / autónomos si la actualiza un técnico
+            if ($user && $user->role_id === 2) {
+                $tenantId = $quote->tenant_id ?? $user->tenant_id ?? null;
+                if (!$tenantId && $quote->service_id) {
+                    $service = \App\Models\Service::find($quote->service_id);
+                    $tenantId = $service->tenant_id ?? ($service->property ? $service->property->tenant_id : null) ?? null;
+                } elseif (!$tenantId && $quote->work_order_id) {
+                    $workOrder = \App\Models\WorkOrder::find($quote->work_order_id);
+                    $tenantId = $workOrder->tenant_id ?? ($workOrder->property ? $workOrder->property->tenant_id : null) ?? null;
+                }
+
+                if ($tenantId) {
+                    $destinatarios = \App\Models\User::whereIn('role_id', [0, 1, 4])
+                        ->where('tenant_id', $tenantId)
+                        ->get();
+                    if ($destinatarios->isEmpty()) {
+                        $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                    }
+                } else {
+                    $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->whereNull('tenant_id')->get();
+                    if ($destinatarios->isEmpty()) {
+                        $destinatarios = \App\Models\User::whereIn('role_id', [0, 1])->get();
+                    }
+                }
+
+                \Illuminate\Support\Facades\Notification::send($destinatarios, new TechnicianQuoteUpdated($quote));
+            }
+
+            // Notificar al cliente si edita el Admin
             if ($user && in_array($user->role_id, [0, 1])) {
                 $quote->load(['service.property.client', 'workOrder.property.client']);
                 $cliente = $quote->service->property->client ?? $quote->workOrder->property->client ?? null;
