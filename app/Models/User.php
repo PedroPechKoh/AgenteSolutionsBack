@@ -29,6 +29,11 @@ class User extends Authenticatable
         'is_active',
         'profile_picture',
         'cover_picture',
+        'subscription_status',
+        'subscription_start',
+        'subscription_expires_at',
+        'subscription_amount',
+        'subscription_mp_payment_id',
     ];
 
 

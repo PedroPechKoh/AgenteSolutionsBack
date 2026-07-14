@@ -41,54 +41,71 @@ class AuthController extends Controller
         $currentUser = auth('sanctum')->user();
         $isRootOrAdmin = ($currentUser && in_array($currentUser->role_id, [0, 1])) || $request->boolean('from_admin');
 
-        // Si es Técnico (rol 2), entra en sala de espera inactivo si no lo crea un Root o Admin
         $isTechnician = ($request->role_id == 2);
-        $isAutonomo = ($request->role_id == 4);
-        $isRootReq = ($request->role_id == 0);
+        $isAutonomoEmpresarial = ($request->role_id == 4);
+        $isAutonomoPersonal    = ($request->role_id == 5);
+        $isAutonomo = $isAutonomoEmpresarial || $isAutonomoPersonal;
+
+        // Precios de suscripción por tipo
+        $subscriptionPrices = [4 => 999.00, 5 => 499.00];
 
         $approvalStatus = ($isTechnician && !$isRootOrAdmin) ? 'pending' : 'approved';
-        $isActive = ($isTechnician && !$isRootOrAdmin) ? 0 : 1;
+        // Autónomos creados por Root/Admin quedan activos inmediatamente; públicos quedan inactivos hasta pagar
+        $isActive = ($isTechnician && !$isRootOrAdmin) ? 0 : ($isAutonomo && !$isRootOrAdmin ? 0 : 1);
 
-        // Por seguridad, si solicita ser Autónomo desde registro público sin sesión, inicia como Cliente (3) hasta autorización
-        $roleToAssign = ($isAutonomo && !$isRootOrAdmin && empty($request->company_code)) ? 3 : $request->role_id;
+        $roleToAssign = $request->role_id;
 
         // A PRUEBA DE BALAS: Asegurar que el rol exista en la tabla roles
-        \DB::table('roles')->insertOrIgnore([
-            'id' => $roleToAssign,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        foreach ([4, 5] as $rId) {
+            \DB::table('roles')->insertOrIgnore(['id' => $rId, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        \DB::table('roles')->insertOrIgnore(['id' => $roleToAssign, 'created_at' => now(), 'updated_at' => now()]);
 
-        // 2. Guardamos usando los campos correctos de la tabla
         $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role_id' => $roleToAssign,
-            'tenant_id' => $tenantId,
+            'first_name'      => $request->first_name,
+            'last_name'       => $request->last_name,
+            'email'           => $request->email,
+            'password'        => Hash::make($request->password),
+            'role_id'         => $roleToAssign,
+            'tenant_id'       => $tenantId,
             'approval_status' => $approvalStatus,
-            'phone_number' => $request->phone_number ?? null,
-            'is_active' => $isActive
+            'phone_number'    => $request->phone_number ?? null,
+            'is_active'       => $isActive
         ]);
 
-        if ($roleToAssign == 4 || $isAutonomo) {
-            $customCode = !empty($request->company_code) ? trim($request->company_code) : ('AUT_' . time() . '_' . $user->id);
-            $companyName = !empty($request->company_name) ? trim($request->company_name) : ('Empresa de ' . trim($user->first_name . ' ' . $user->last_name));
+        if ($isAutonomo) {
+            $membershipType   = $isAutonomoEmpresarial ? 'autonomo_empresarial' : 'autonomo_personal';
+            $subscriptionAmt  = $isAutonomoPersonal ? 299.00 : 935.00;
+            $customCode       = !empty($request->company_code) ? trim($request->company_code) : ('AUT' . ($isAutonomoPersonal ? '_P' : '_E') . '_' . time() . '_' . $user->id);
+            $companyName      = !empty($request->company_name) ? trim($request->company_name) : trim($user->first_name . ' ' . $user->last_name);
+
+            // Siempre se dan 6 MESES GRATIS iniciales
+            $subStatus  = 'active';
+            $subStart   = now();
+            $subExpires = now()->addMonths(6);
+
+            $maxProperties = $isAutonomoPersonal ? 3 : 30;
+            $maxClients    = $isAutonomoPersonal ? 0 : 30;
 
             $tenant = Tenant::create([
-                'name' => $companyName,
-                'code' => $customCode,
-                'owner_user_id' => $user->id,
-                'phone' => $user->phone_number,
-                'email' => $user->email,
-                'status' => 'active',
-                'membership_type' => 'autonomo'
+                'name'                    => $companyName,
+                'code'                    => $customCode,
+                'owner_user_id'           => $user->id,
+                'phone'                   => $user->phone_number,
+                'email'                   => $user->email,
+                'status'                  => 'active',
+                'membership_type'         => $membershipType,
+                'max_properties'          => $maxProperties,
+                'max_clients'             => $maxClients,
+                'billing_cycle'           => 'trial',
+                'subscription_status'     => $subStatus,
+                'subscription_start'      => $subStart,
+                'subscription_expires_at' => $subExpires,
+                'subscription_amount'     => $subscriptionAmt,
             ]);
 
-            $user->tenant_id = $tenant->id;
-            $user->role_id = 4;
-            $user->is_active = 1;
+            $user->tenant_id       = $tenant->id;
+            $user->is_active       = 1;
             $user->approval_status = 'approved';
             $user->save();
         }
@@ -101,10 +118,25 @@ class AuthController extends Controller
         }
 
         if ($isTechnician) {
+            $tenantObj = $tenantId ? Tenant::find($tenantId) : null;
+            $isAgenteSolutionsTech = ($tenantId == 1 || ($tenantObj && ($tenantObj->code === 'AUT_01' || stripos($tenantObj->name, 'Agente Solutions') !== false)));
+
+            if ($isAgenteSolutionsTech) {
+                $user->subscription_status = 'exempt';
+                $user->subscription_amount = 0.00;
+            } else {
+                // Técnico externo: 1 AÑO GRATIS, luego $99/mes
+                $user->subscription_status     = 'active';
+                $user->subscription_start      = now();
+                $user->subscription_expires_at = now()->addYear();
+                $user->subscription_amount     = 99.00;
+            }
+            $user->save();
+
             return response()->json([
                 'success' => true,
                 'status' => 'pending_approval',
-                'message' => 'Tu perfil ha sido registrado y está en espera de ser revisado y autorizado por el Administrador de tu empresa.',
+                'message' => 'Tu perfil ha sido registrado con éxito. Te hemos otorgado 1 AÑO GRATIS de suscripción. Está en espera de revisión por el Administrador de tu empresa.',
                 'user' => $user
             ], 201);
         }
@@ -113,7 +145,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Usuario creado exitosamente',
+            'message' => 'Usuario creado exitosamente con prueba gratuita de 6 meses activa.',
             'user' => $user,
             'token' => $token
         ], 201);
@@ -147,6 +179,56 @@ class AuthController extends Controller
             return response()->json([
                 'error' => 'No puedes acceder a tu cuenta, por favor contactate con el servicio de soporte.'
             ], 403);
+        }
+
+        // Verificar suscripción para Autónomos (role 4 o 5)
+        if (in_array($user->role_id, [4, 5])) {
+            $user->load('tenant');
+            $tenant = $user->tenant;
+            if ($tenant) {
+                // Autodetectar vencimiento del trial o suscripción en tiempo real
+                if ($tenant->subscription_expires_at && now()->isAfter(\Carbon\Carbon::parse($tenant->subscription_expires_at)) && $tenant->subscription_status === 'active') {
+                    $tenant->subscription_status = 'expired';
+                    $tenant->save();
+                }
+
+                if ($tenant->subscription_status === 'pending_payment') {
+                    return response()->json([
+                        'blocked'   => true,
+                        'reason'    => 'pending_payment',
+                        'tenant_id' => $tenant->id,
+                        'amount'    => $tenant->subscription_amount,
+                        'error'     => 'Para acceder debes completar el pago de tu suscripción.'
+                    ], 403);
+                }
+                if ($tenant->subscription_status === 'expired') {
+                    return response()->json([
+                        'blocked'   => true,
+                        'reason'    => 'expired',
+                        'tenant_id' => $tenant->id,
+                        'amount'    => $tenant->subscription_amount,
+                        'error'     => 'Tu suscripción o prueba gratuita ha vencido. Renueva para recuperar el acceso.'
+                    ], 403);
+                }
+            }
+        }
+
+        // Verificar suscripción para Técnicos Externos (role 2)
+        if ($user->role_id == 2 && $user->subscription_status !== 'exempt') {
+            if ($user->subscription_expires_at && now()->isAfter(\Carbon\Carbon::parse($user->subscription_expires_at)) && $user->subscription_status === 'active') {
+                $user->subscription_status = 'expired';
+                $user->save();
+            }
+
+            if ($user->subscription_status === 'expired' || $user->subscription_status === 'pending_payment') {
+                return response()->json([
+                    'blocked'   => true,
+                    'reason'    => 'expired_technician',
+                    'user_id'   => $user->id,
+                    'amount'    => $user->subscription_amount ?? 99.00,
+                    'error'     => 'Tu año de prueba o suscripción de técnico ha vencido. Paga tu mensualidad de $99.00 para continuar.'
+                ], 403);
+            }
         }
 
         $token = $user->createToken('AgenteToken')->plainTextToken;

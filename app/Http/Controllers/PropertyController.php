@@ -104,8 +104,30 @@ class PropertyController extends Controller
         }
         $direccion_completa .= ", Col. {$request->colonia}, {$request->municipio}, {$request->estado}";
 
+        // Verificar límite de propiedades en el Plan del Autónomo
+        if ($user->tenant_id) {
+            $tenant = \App\Models\Tenant::find($user->tenant_id);
+            if ($tenant && !$tenant->canAddProperty()) {
+                if ($tenant->membership_type === 'autonomo_personal') {
+                    return response()->json([
+                        'error'                   => 'Has alcanzado el límite de ' . (($tenant->max_properties ?? 3) + ($tenant->extra_properties_count ?? 0)) . ' propiedades en tu Plan Personal. Adquiere una propiedad extra por $79.99 MXN para continuar.',
+                        'limit_reached'           => true,
+                        'requires_extra_property' => true,
+                        'extra_cost'              => 79.99,
+                        'tenant_id'               => $tenant->id
+                    ], 403);
+                } else {
+                    return response()->json([
+                        'error'         => 'Has alcanzado el límite máximo de ' . ($tenant->max_properties ?? 30) . ' propiedades en tu Plan Empresarial.',
+                        'limit_reached' => true
+                    ], 403);
+                }
+            }
+        }
+
         $property = new Property();
         $property->client_id = $clientId;
+        $property->tenant_id = $user->tenant_id;
         $property->type = $request->type;
         $property->state = $request->estado;
         $property->address = $direccion_completa;

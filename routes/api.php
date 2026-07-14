@@ -35,6 +35,8 @@ Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
 // Webhook de MercadoPago (Público para que MP pueda avisarnos del pago)
 Route::post('/mercadopago/webhook', [MercadoPagoController::class, 'webhook']);
 Route::post('/mercadopago/verify', [MercadoPagoController::class, 'verifyPayment']);
+// Suscripción Autónomo (público: el usuario aún no está activo al pagar)
+Route::post('/mercadopago/subscription/{tenantId}', [MercadoPagoController::class, 'createSubscriptionPreference']);
 
 // Lista pública de empresas autónomas para registro y login
 Route::get('/tenants/public-list', [TenantController::class, 'listTenants']);
@@ -169,8 +171,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- GESTIÓN DE AUTÓNOMOS Y MULTI-TENANT ---
     Route::post('/tenants/request-membership', [TenantController::class, 'requestMembership']);
     Route::get('/tenants/my-membership-status', [TenantController::class, 'myMembershipStatus']);
+    Route::get('/tenant/subscription-status', [TenantController::class, 'getSubscriptionStatus']);
     Route::get('/tenants/pending-memberships', [TenantController::class, 'pendingMemberships']);
     Route::post('/tenants/{id}/approve', [TenantController::class, 'approveTenant']);
+    Route::post('/tenants/{id}/update-subscription-plan', [TenantController::class, 'updateSubscriptionPlan']);
     Route::post('/tenants/transfer-portfolio', [TenantController::class, 'transferPortfolio']);
     Route::get('/tenants/pending-technicians', [TenantController::class, 'pendingTechnicians']);
     Route::post('/tenants/approve-technician/{userId}', [TenantController::class, 'approveTechnician']);

@@ -21,7 +21,7 @@ class TenantController extends Controller
     public function listTenants()
     {
         $tenants = Tenant::where('status', 'active')
-            ->select('id', 'name', 'code', 'logo_url', 'phone', 'email', 'owner_user_id')
+            ->select('id', 'name', 'code', 'logo_url', 'phone', 'email', 'owner_user_id', 'membership_type', 'max_properties', 'extra_properties_count', 'max_clients', 'subscription_status', 'subscription_expires_at', 'subscription_amount', 'billing_cycle')
             ->get();
 
         return response()->json([
@@ -47,6 +47,69 @@ class TenantController extends Controller
             'has_pending' => ($myTenant && $myTenant->status === 'pending_approval') ? true : false,
             'tenant' => $myTenant,
             'user' => $user
+        ]);
+    }
+
+    /**
+     * Obtener el estado actual y días restantes de la suscripción de 6 meses.
+     */
+    public function getSubscriptionStatus()
+    {
+        $user = auth('sanctum')->user();
+        if (!$user) {
+            return response()->json(['error' => 'No autorizado'], 401);
+        }
+
+        // Si es Técnico Externo (rol 2)
+        if ($user->role_id == 2) {
+            $daysRemaining = 0;
+            if ($user->subscription_expires_at) {
+                $daysRemaining = (int) now()->diffInDays(\Carbon\Carbon::parse($user->subscription_expires_at), false);
+            }
+            return response()->json([
+                'success'                 => true,
+                'is_technician'           => true,
+                'subscription_status'     => $user->subscription_status ?? 'active',
+                'subscription_start'      => $user->subscription_start,
+                'subscription_expires_at' => $user->subscription_expires_at,
+                'subscription_amount'     => $user->subscription_amount ?? 99.00,
+                'days_remaining'          => $daysRemaining,
+                'user'                    => $user
+            ]);
+        }
+
+        $tenant = Tenant::where('owner_user_id', $user->id)
+            ->orWhere('id', $user->tenant_id)
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if (!$tenant) {
+            return response()->json(['success' => false, 'message' => 'No se encontró empresa asignada.'], 404);
+        }
+
+        $daysRemaining = 0;
+        if ($tenant->subscription_expires_at) {
+            $daysRemaining = (int) now()->diffInDays(\Carbon\Carbon::parse($tenant->subscription_expires_at), false);
+        }
+
+        $propertiesCount = $tenant->properties()->count();
+        $clientsCount    = \App\Models\Client::where('tenant_id', $tenant->id)->count();
+
+        return response()->json([
+            'success'                 => true,
+            'is_technician'           => false,
+            'subscription_status'     => $tenant->subscription_status ?? 'active',
+            'subscription_start'      => $tenant->subscription_start,
+            'subscription_expires_at' => $tenant->subscription_expires_at,
+            'subscription_amount'     => $tenant->subscription_amount,
+            'days_remaining'          => $daysRemaining,
+            'properties_count'        => $propertiesCount,
+            'max_properties'          => $tenant->max_properties ?? 3,
+            'extra_properties_count'  => $tenant->extra_properties_count ?? 0,
+            'clients_count'           => $clientsCount,
+            'max_clients'             => $tenant->max_clients ?? 30,
+            'billing_cycle'           => $tenant->billing_cycle ?? 'trial',
+            'tenant'                  => $tenant
         ]);
     }
 
@@ -158,6 +221,55 @@ class TenantController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Autónomo autorizado exitosamente con el código {$code}",
+            'tenant' => $tenant
+        ]);
+    }
+
+    /**
+     * Actualizar el tipo de membresía y límites de una empresa / autónomo (Solo Root).
+     */
+    public function updateSubscriptionPlan(Request $request, $id)
+    {
+        if (auth()->user()->role_id !== 0) {
+            return response()->json(['error' => 'No tienes permisos de Root'], 403);
+        }
+
+        $tenant = Tenant::findOrFail($id);
+
+        $membershipType = $request->membership_type ?? $tenant->membership_type ?? 'autonomo_empresarial';
+        $subAmount = $request->subscription_amount ?? $tenant->subscription_amount ?? 935.00;
+        $maxProperties = $request->max_properties ?? $tenant->max_properties ?? 30;
+        $extraProperties = $request->extra_properties_count ?? $tenant->extra_properties_count ?? 0;
+        $maxClients = $request->max_clients ?? $tenant->max_clients ?? 30;
+        $expiresAt = $request->subscription_expires_at ?? $tenant->subscription_expires_at;
+
+        if ($membershipType === 'autonomo_fundador') {
+            $subAmount = 659.00;
+            $maxProperties = 9999;
+            $maxClients = 9999;
+        } elseif ($membershipType === 'autonomo_personal') {
+            $subAmount = 299.00;
+        } elseif ($membershipType === 'autonomo_empresarial') {
+            $subAmount = 935.00;
+        }
+
+        $tenant->update([
+            'membership_type' => $membershipType,
+            'subscription_amount' => $subAmount,
+            'max_properties' => $maxProperties,
+            'extra_properties_count' => $extraProperties,
+            'max_clients' => $maxClients,
+            'subscription_expires_at' => $expiresAt
+        ]);
+
+        if ($tenant->owner_user_id) {
+            $roleId = ($membershipType === 'autonomo_personal') ? 5 : 4;
+            User::withoutGlobalScopes()->where('id', $tenant->owner_user_id)->update(['role_id' => $roleId]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Plan y límites del autónomo actualizados correctamente.',
             'tenant' => $tenant
         ]);
     }

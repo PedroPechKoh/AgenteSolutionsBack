@@ -17,6 +17,153 @@ class MercadoPagoController extends Controller
         MercadoPagoConfig::setAccessToken(env('MERCADOPAGO_ACCESS_TOKEN'));
     }
 
+    /**
+     * Crear preferencia de pago para suscripción de Autónomo.
+     * El frontend llama a esto justo después de registrarse o al renovar.
+     */
+    public function createSubscriptionPreference(Request $request, $tenantId)
+    {
+        $frontendUrl = rtrim($request->header('origin') ?? env('FRONTEND_URL', 'https://agentesolutions-production.up.railway.app'), '/');
+
+        // 1. Si es pago para Técnico Externo ($99/mes)
+        if ($request->type === 'technician' || $request->has('user_id')) {
+            $userId   = $request->user_id ?? auth('sanctum')->id();
+            $techUser = \App\Models\User::findOrFail($userId);
+            $amount   = 99.00;
+            $title    = "Suscripción Mensual Técnico - Agente Solutions";
+            $desc     = "Acceso mensual para técnico externo ($99.00 MXN)";
+            $extRef   = "TECH|" . $techUser->id;
+
+            try {
+                $client = new PreferenceClient();
+                $preference = $client->create([
+                    "items" => [[
+                        "id" => 'TECH_' . $techUser->id, "title" => $title, "description" => $desc,
+                        "quantity" => 1, "unit_price" => $amount, "currency_id" => "MXN"
+                    ]],
+                    "back_urls" => [
+                        "success" => $frontendUrl . "/activacion-cuenta?status=success&type=technician",
+                        "failure" => $frontendUrl . "/activacion-cuenta?status=failure&type=technician",
+                        "pending" => $frontendUrl . "/activacion-cuenta?status=pending&type=technician"
+                    ],
+                    "auto_return" => "approved", "external_reference" => $extRef,
+                    "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook",
+                    "payer" => ["email" => $techUser->email, "name" => trim($techUser->first_name . ' ' . $techUser->last_name)]
+                ]);
+                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'type' => 'Técnico Externo']);
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Error MP', 'details' => $e->getMessage()], 500);
+            }
+        }
+
+        $tenant = \App\Models\Tenant::findOrFail($tenantId);
+        $owner  = \App\Models\User::find($tenant->owner_user_id);
+
+        // 2. Si es compra de Propiedad Extra ($79.99)
+        if ($request->type === 'extra_property' || $request->has('extra_property')) {
+            $amount = 79.99;
+            $title  = "Propiedad Extra (+1) - Plan Personal";
+            $desc   = "Cupo adicional de propiedad para {$tenant->name}";
+            $extRef = "EXT_PROP|" . $tenant->id;
+
+            try {
+                $client = new PreferenceClient();
+                $preference = $client->create([
+                    "items" => [[
+                        "id" => 'EXT_PROP_' . $tenant->id, "title" => $title, "description" => $desc,
+                        "quantity" => 1, "unit_price" => $amount, "currency_id" => "MXN"
+                    ]],
+                    "back_urls" => [
+                        "success" => $frontendUrl . "/activacion-cuenta?status=success&type=extra_property",
+                        "failure" => $frontendUrl . "/activacion-cuenta?status=failure&type=extra_property",
+                        "pending" => $frontendUrl . "/activacion-cuenta?status=pending&type=extra_property"
+                    ],
+                    "auto_return" => "approved", "external_reference" => $extRef,
+                    "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
+                ]);
+                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'type' => 'Propiedad Extra']);
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Error MP', 'details' => $e->getMessage()], 500);
+            }
+        }
+
+        // 3. Renovación de Plan Autónomo (Personal, Empresarial, Fundador)
+        $option = $request->plan_option ?? 'monthly'; // 'monthly', 'annual', 'completion'
+        $durationMonths = 1;
+        $amount = 299.00;
+        $typeLabel = 'Autónomo Personal';
+
+        if ($tenant->membership_type === 'autonomo_fundador') {
+            $typeLabel = 'Autónomo Plan Fundador';
+            if ($option === 'annual' || $option === 'completion') {
+                $amount = 3600.00; $durationMonths = 6; $title = "Plan Fundador - Completar Año (6 meses)";
+            } else {
+                $amount = 659.00; $durationMonths = 1; $title = "Plan Fundador - Mensual";
+            }
+        } elseif ($tenant->membership_type === 'autonomo_personal') {
+            $typeLabel = 'Autónomo Personal';
+            if ($option === 'annual') {
+                $amount = 3229.20; $durationMonths = 12; $title = "Plan Personal - Anual (10% descuento)";
+            } else {
+                $amount = 299.00; $durationMonths = 1; $title = "Plan Personal - Mensual";
+            }
+        } else {
+            $typeLabel = 'Autónomo Empresarial';
+            if ($option === 'annual') {
+                $amount = 10200.00; $durationMonths = 12; $title = "Plan Empresarial - Anual";
+            } else {
+                $amount = 935.00; $durationMonths = 1; $title = "Plan Empresarial - Mensual";
+            }
+        }
+
+        $extRef = "SUB|{$tenant->id}|{$durationMonths}|{$amount}";
+
+        try {
+            $client = new PreferenceClient();
+            $preferenceParams = [
+                "items" => [[
+                    "id"          => 'SUB_' . $tenantId . '_' . $durationMonths,
+                    "title"       => $title . " - Agente Solutions",
+                    "description" => "Acceso por {$durationMonths} mes(es) para {$tenant->name}",
+                    "quantity"    => 1,
+                    "unit_price"  => $amount,
+                    "currency_id" => "MXN"
+                ]],
+                "back_urls" => [
+                    "success" => $frontendUrl . "/activacion-cuenta?status=success&tenant_id={$tenantId}",
+                    "failure" => $frontendUrl . "/activacion-cuenta?status=failure&tenant_id={$tenantId}",
+                    "pending" => $frontendUrl . "/activacion-cuenta?status=pending&tenant_id={$tenantId}"
+                ],
+                "auto_return"        => "approved",
+                "external_reference" => $extRef,
+                "notification_url"   => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
+            ];
+
+            if ($owner && $owner->email) {
+                $preferenceParams["payer"] = [
+                    "email" => $owner->email,
+                    "name"  => trim($owner->first_name . ' ' . $owner->last_name)
+                ];
+            }
+
+            $preference = $client->create($preferenceParams);
+
+            return response()->json([
+                'id'                  => $preference->id,
+                'init_point'          => $preference->init_point,
+                'sandbox_init_point'  => $preference->sandbox_init_point,
+                'amount'              => $amount,
+                'type'                => $typeLabel
+            ]);
+
+        } catch (\MercadoPago\Exceptions\MPApiException $e) {
+            $apiResponse = $e->getApiResponse();
+            return response()->json(['error' => 'Error MP', 'details' => $apiResponse ? $apiResponse->getContent() : $e->getMessage()], 500);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error interno', 'details' => $e->getMessage()], 500);
+        }
+    }
+
     public function createPreference(Request $request, $id)
     {
         $quote = Quote::with(['service.property.client', 'workOrder.property.client'])->findOrFail($id);
@@ -181,16 +328,80 @@ class MercadoPagoController extends Controller
                 $payment = $paymentClient->get($dataId);
 
                 if ($payment) {
-                    // El external_reference es el ID de nuestra cotización
-                    $quoteId = $payment->external_reference;
-                    $quote = Quote::find($quoteId);
+                    $externalRef = $payment->external_reference ?? '';
+
+                    // ─────────────────────────────────────────────────────────────
+                    // PAGO DE SUSCRIPCIÓN (SUB|{tenant_id})
+                    // ─────────────────────────────────────────────────────────────
+                    if (str_starts_with($externalRef, 'SUB|')) {
+                        if ($payment->status === 'approved') {
+                            $parts = explode('|', $externalRef);
+                            $tenantId = (int) ($parts[1] ?? substr($externalRef, 4));
+                            $durationMonths = isset($parts[2]) ? (int) $parts[2] : 6;
+                            $tenant   = \App\Models\Tenant::find($tenantId);
+                            if ($tenant) {
+                                $tenant->subscription_status        = 'active';
+                                $tenant->subscription_start         = now();
+                                $tenant->subscription_expires_at    = now()->addMonths($durationMonths);
+                                $tenant->subscription_mp_payment_id = $payment->id;
+                                $tenant->billing_cycle              = ($durationMonths >= 12) ? 'annual' : ($durationMonths >= 6 ? 'semiannual' : 'monthly');
+                                $tenant->status                     = 'active';
+                                $tenant->save();
+
+                                \App\Models\User::where('id', $tenant->owner_user_id)->update(['is_active' => 1]);
+                            }
+                        }
+                        return response()->json(['ok' => true]);
+                    }
+
+                    // ─────────────────────────────────────────────────────────────
+                    // PAGO DE SUSCRIPCIÓN TÉCNICO EXTERNO ($99/mes - TECH|{user_id})
+                    // ─────────────────────────────────────────────────────────────
+                    if (str_starts_with($externalRef, 'TECH|')) {
+                        if ($payment->status === 'approved') {
+                            $techUserId = (int) substr($externalRef, 5);
+                            $techUser   = \App\Models\User::find($techUserId);
+                            if ($techUser) {
+                                $techUser->subscription_status        = 'active';
+                                $techUser->subscription_start         = now();
+                                // Si ya tenía vigencia en el futuro, se le suma 1 mes, si no, es desde hoy
+                                $baseDate = ($techUser->subscription_expires_at && now()->isBefore(\Carbon\Carbon::parse($techUser->subscription_expires_at)))
+                                    ? \Carbon\Carbon::parse($techUser->subscription_expires_at)
+                                    : now();
+                                $techUser->subscription_expires_at    = $baseDate->addMonth();
+                                $techUser->subscription_mp_payment_id = $payment->id;
+                                $techUser->save();
+                            }
+                        }
+                        return response()->json(['ok' => true]);
+                    }
+
+                    // ─────────────────────────────────────────────────────────────
+                    // PAGO DE PROPIEDAD EXTRA ($79.99 - EXT_PROP|{tenant_id})
+                    // ─────────────────────────────────────────────────────────────
+                    if (str_starts_with($externalRef, 'EXT_PROP|')) {
+                        if ($payment->status === 'approved') {
+                            $tenantId = (int) substr($externalRef, 9);
+                            $tenant   = \App\Models\Tenant::find($tenantId);
+                            if ($tenant) {
+                                $tenant->extra_properties_count = ($tenant->extra_properties_count ?? 0) + 1;
+                                $tenant->save();
+                            }
+                        }
+                        return response()->json(['ok' => true]);
+                    }
+
+                    // ─────────────────────────────────────────────────────────────
+                    // PAGO DE COTIZACIÓN (formato original: "{quote_id}|{stage}")
+                    // ─────────────────────────────────────────────────────────────
+                    $refParts = explode('|', $externalRef);
+                    $quoteIdRef = (int) $refParts[0];
+                    $quote = Quote::find($quoteIdRef);
 
                     if ($quote) {
                         // Si el pago fue aprobado, marcamos la cotización según la etapa
                         if ($payment->status === 'approved') {
-                            // Separar quote_id y stage del external_reference
-                            $refParts = explode('|', $payment->external_reference ?? '');
-                            $stage    = $refParts[1] ?? 'full';
+                            $stage = $refParts[1] ?? 'full';
 
                             $paymentData = $this->buildPaymentData($payment);
 
@@ -205,7 +416,6 @@ class MercadoPagoController extends Controller
                                 $quote->remaining_mp_data = $paymentData;
                                 $quote->status            = 'Pagado';
                             } else {
-                                // Pago total (full)
                                 $quote->mp_payment_data = $paymentData;
                                 $quote->status          = 'Pagado';
                             }
@@ -225,7 +435,6 @@ class MercadoPagoController extends Controller
                                 }
                             }
                         } elseif ($payment->status === 'in_process') {
-                            // Si el pago está en revisión (por ejemplo pago en efectivo OXXO pendiente)
                             $quote->status = 'Pago en Revisión';
                             $quote->save();
                         }

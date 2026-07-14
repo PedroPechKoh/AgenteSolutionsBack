@@ -155,12 +155,11 @@ class UserController extends Controller
     // =========================================================================
     public function updateRole(Request $request, $id)
     {
-        // 1. Limpiamos el ID (quitamos el prefijo u_ si existe)
         $realId = str_replace('u_', '', $id);
 
-        // 2. Ajustamos la validación: permitimos 0 (Root), 1 (Admin), 2 (Tecnico), 3 (Cliente), 4 (Autonomo)
+        // Incluir role_id 5 (Autónomo Personal) en los permitidos
         $request->validate([
-            'role_id' => 'required|integer|in:0,1,2,3,4'
+            'role_id' => 'required|integer|in:0,1,2,3,4,5'
         ]);
 
         $user = null;
@@ -183,42 +182,89 @@ class UserController extends Controller
             return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
         }
 
-        // 4. Seguridad: No permitir que nadie le quite el puesto al ROOT si ya lo es
         if ($user->role_id === 0 && $request->role_id !== 0) {
             return response()->json(['success' => false, 'message' => 'No puedes quitarle el rango de ROOT a este usuario.'], 403);
         }
 
-        // A PRUEBA DE BALAS: Asegurar que el ID de rol exista en la tabla roles (evita error 1452 Foreign Key en Railway)
-        DB::table('roles')->insertOrIgnore([
-            'id' => $request->role_id,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
+        // A PRUEBA DE BALAS: Asegurar roles 4 y 5 en la tabla roles
+        foreach ([4, 5] as $rId) {
+            DB::table('roles')->insertOrIgnore(['id' => $rId, 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('roles')->insertOrIgnore(['id' => $request->role_id, 'created_at' => now(), 'updated_at' => now()]);
 
         $user->role_id = $request->role_id;
 
-        // Si se cambia a rol 4 (Autonomo), nos aseguramos de que tenga su Tenant
-        if ($request->role_id == 4) {
+        // Si se cambia a Autónomo Empresarial (4) o Personal (5) o Fundador, crear/activar Tenant
+        if (in_array($request->role_id, [4, 5])) {
+            $isPersonal     = ($request->role_id == 5);
+            $membershipType = $request->membership_type ?? ($isPersonal ? 'autonomo_personal' : 'autonomo_empresarial');
+            
+            if ($membershipType === 'autonomo_fundador') {
+                $subAmount     = 659.00;
+                $maxProperties = 9999;
+                $maxClients    = 9999;
+                $codePrefix    = 'AUT_F_';
+            } elseif ($isPersonal) {
+                $subAmount     = 299.00;
+                $maxProperties = 3;
+                $maxClients    = 0;
+                $codePrefix    = 'AUT_P_';
+            } else {
+                $subAmount     = 935.00;
+                $maxProperties = 30;
+                $maxClients    = 30;
+                $codePrefix    = 'AUT_E_';
+            }
+
             $tenant = Tenant::where('owner_user_id', $user->id)->orWhere('email', $user->email)->first();
             if (!$tenant) {
                 $nextId = (Tenant::max('id') ?? 0) + 1;
-                $code = 'AUT_' . str_pad($nextId, 2, '0', STR_PAD_LEFT);
+                $code   = $codePrefix . str_pad($nextId, 3, '0', STR_PAD_LEFT);
                 $tenant = Tenant::create([
-                    'name' => 'Empresa de ' . trim($user->first_name . ' ' . $user->last_name),
-                    'code' => $code,
-                    'owner_user_id' => $user->id,
-                    'phone' => $user->phone_number,
-                    'email' => $user->email,
-                    'status' => 'active',
-                    'membership_type' => 'autonomo'
+                    'name'                    => trim($user->first_name . ' ' . $user->last_name),
+                    'code'                    => $code,
+                    'owner_user_id'           => $user->id,
+                    'phone'                   => $user->phone_number,
+                    'email'                   => $user->email,
+                    'status'                  => 'active',
+                    'membership_type'         => $membershipType,
+                    'max_properties'          => $maxProperties,
+                    'max_clients'             => $maxClients,
+                    'billing_cycle'           => 'trial',
+                    'subscription_status'     => 'active',
+                    'subscription_start'      => now(),
+                    'subscription_expires_at' => now()->addMonths(6),
+                    'subscription_amount'     => $subAmount,
                 ]);
             } else {
-                if ($tenant->status !== 'active') {
-                    $code = 'AUT_' . str_pad($tenant->id, 2, '0', STR_PAD_LEFT);
-                    $tenant->update(['status' => 'active', 'code' => $code]);
-                }
+                $tenant->update([
+                    'status'                  => 'active',
+                    'membership_type'         => $membershipType,
+                    'max_properties'          => $maxProperties,
+                    'max_clients'             => $maxClients,
+                    'billing_cycle'           => 'trial',
+                    'subscription_status'     => 'active',
+                    'subscription_start'      => now(),
+                    'subscription_expires_at' => now()->addMonths(6),
+                    'subscription_amount'     => $subAmount,
+                ]);
             }
-            $user->tenant_id = $tenant->id;
+            $user->tenant_id  = $tenant->id;
+            $user->is_active  = 1;
+        } elseif ($request->role_id == 2) {
+            // Técnico: si es externo de Agente Solutions, tiene 1 año gratis, luego $99/mes
+            $tenantObj = $user->tenant_id ? Tenant::find($user->tenant_id) : null;
+            $isAgenteSolutionsTech = ($user->tenant_id == 1 || ($tenantObj && ($tenantObj->code === 'AUT_01' || stripos($tenantObj->name, 'Agente Solutions') !== false)));
+
+            if ($isAgenteSolutionsTech) {
+                $user->subscription_status = 'exempt';
+                $user->subscription_amount = 0.00;
+            } else {
+                $user->subscription_status     = 'active';
+                $user->subscription_start      = now();
+                $user->subscription_expires_at = now()->addYear();
+                $user->subscription_amount     = 99.00;
+            }
         }
 
         $user->save();
@@ -226,7 +272,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Rol actualizado correctamente.',
-            'user' => $user
+            'user'    => $user
         ], 200);
     }
 
