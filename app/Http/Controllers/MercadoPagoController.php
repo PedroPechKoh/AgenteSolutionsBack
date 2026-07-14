@@ -59,19 +59,21 @@ class MercadoPagoController extends Controller
         $tenant = \App\Models\Tenant::findOrFail($tenantId);
         $owner  = \App\Models\User::find($tenant->owner_user_id);
 
-        // 2. Si es compra de Propiedad Extra ($79.99)
+        // 2. Si es compra de Propiedad Extra ($79.99 por cada espacio)
         if ($request->type === 'extra_property' || $request->has('extra_property')) {
-            $amount = 79.99;
-            $title  = "Propiedad Extra (+1) - Plan Personal";
-            $desc   = "Cupo adicional de propiedad para {$tenant->name}";
-            $extRef = "EXT_PROP|" . $tenant->id;
+            $quantity = (int) ($request->quantity ?? 1);
+            if ($quantity < 1) $quantity = 1;
+            $amount = round(79.99 * $quantity, 2);
+            $title  = "Propiedad(es) Extra (+{$quantity}) - Plan Personal";
+            $desc   = "Cupo adicional de {$quantity} propiedad(es) para {$tenant->name}";
+            $extRef = "EXT_PROP|" . $tenant->id . "|" . $quantity;
 
             try {
                 $client = new PreferenceClient();
                 $preference = $client->create([
                     "items" => [[
-                        "id" => 'EXT_PROP_' . $tenant->id, "title" => $title, "description" => $desc,
-                        "quantity" => 1, "unit_price" => $amount, "currency_id" => "MXN"
+                        "id" => 'EXT_PROP_' . $tenant->id . '_' . $quantity, "title" => $title, "description" => $desc,
+                        "quantity" => $quantity, "unit_price" => 79.99, "currency_id" => "MXN"
                     ]],
                     "back_urls" => [
                         "success" => $frontendUrl . "/activacion-cuenta?status=success&type=extra_property",
@@ -81,7 +83,7 @@ class MercadoPagoController extends Controller
                     "auto_return" => "approved", "external_reference" => $extRef,
                     "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
                 ]);
-                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'type' => 'Propiedad Extra']);
+                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'quantity' => $quantity, 'type' => 'Propiedad Extra']);
             } catch (\Exception $e) {
                 return response()->json(['error' => 'Error MP', 'details' => $e->getMessage()], 500);
             }
@@ -381,10 +383,13 @@ class MercadoPagoController extends Controller
                     // ─────────────────────────────────────────────────────────────
                     if (str_starts_with($externalRef, 'EXT_PROP|')) {
                         if ($payment->status === 'approved') {
-                            $tenantId = (int) substr($externalRef, 9);
-                            $tenant   = \App\Models\Tenant::find($tenantId);
+                            $parts = explode('|', $externalRef);
+                            $tenantId = (int) ($parts[1] ?? 0);
+                            $quantity = (int) ($parts[2] ?? 1);
+                            if ($quantity < 1) $quantity = 1;
+                            $tenant = \App\Models\Tenant::find($tenantId);
                             if ($tenant) {
-                                $tenant->extra_properties_count = ($tenant->extra_properties_count ?? 0) + 1;
+                                $tenant->extra_properties_count = ($tenant->extra_properties_count ?? 0) + $quantity;
                                 $tenant->save();
                             }
                         }
