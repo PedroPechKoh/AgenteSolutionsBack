@@ -161,7 +161,7 @@ class PropertyController extends Controller
                 ], 401);
             }
 
-            $query = Property::with('client')->orderByDesc('created_at');
+            $query = Property::with(['client', 'tenant'])->orderByDesc('created_at');
 
             // Filtrado basado en el rol (Si es Cliente 3, solo ve las suyas)
             $cliente = null;
@@ -235,6 +235,8 @@ class PropertyController extends Controller
 
                 return [
                     'id' => $p->id,
+                    'tenant_id' => $p->tenant_id,
+                    'tenant_name' => $p->tenant ? $p->tenant->name : ($p->tenant_id == 1 ? 'Agente Solutions' : null),
                     'client_id' => $p->client_id,
                     'client_email' => $p->client ? $p->client->email : null,
                     'propietario' => $p->client ? $p->client->name : 'Sin Propietario',
