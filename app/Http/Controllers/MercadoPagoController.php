@@ -25,8 +25,39 @@ class MercadoPagoController extends Controller
     {
         $frontendUrl = rtrim($request->header('origin') ?? env('FRONTEND_URL', 'https://agentesolutions-production.up.railway.app'), '/');
 
-        // 1. Si es pago para Técnico Externo ($99/mes)
-        if ($request->type === 'technician' || $request->has('user_id')) {
+        // 1. Si es compra de Propiedad Extra ($79.99 por cada espacio)
+        if ($request->type === 'extra_property' || $request->has('extra_property')) {
+            $tenant = \App\Models\Tenant::findOrFail($tenantId);
+            $quantity = (int) ($request->quantity ?? 1);
+            if ($quantity < 1) $quantity = 1;
+            $amount = round(79.99 * $quantity, 2);
+            $title  = "Propiedad(es) Extra (+{$quantity}) - Plan Personal";
+            $desc   = "Cupo adicional de {$quantity} propiedad(es) para {$tenant->name}";
+            $extRef = "EXT_PROP|" . $tenant->id . "|" . $quantity;
+
+            try {
+                $client = new PreferenceClient();
+                $preference = $client->create([
+                    "items" => [[
+                        "id" => 'EXT_PROP_' . $tenant->id . '_' . $quantity, "title" => $title, "description" => $desc,
+                        "quantity" => $quantity, "unit_price" => 79.99, "currency_id" => "MXN"
+                    ]],
+                    "back_urls" => [
+                        "success" => $frontendUrl . "/activacion-cuenta?status=success&type=extra_property",
+                        "failure" => $frontendUrl . "/activacion-cuenta?status=failure&type=extra_property",
+                        "pending" => $frontendUrl . "/activacion-cuenta?status=pending&type=extra_property"
+                    ],
+                    "auto_return" => "approved", "external_reference" => $extRef,
+                    "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
+                ]);
+                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'quantity' => $quantity, 'type' => 'Propiedad Extra']);
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'Error MP', 'details' => $e->getMessage()], 500);
+            }
+        }
+
+        // 2. Si es pago para Técnico Externo ($99/mes)
+        if ($request->type === 'technician' || (!empty($request->user_id) && $request->type !== 'extra_property' && !isset($request->extra_property) && $request->type !== 'autonomo')) {
             $userId   = $request->user_id ?? auth('sanctum')->id();
             $techUser = \App\Models\User::findOrFail($userId);
             $amount   = 99.00;
@@ -58,36 +89,6 @@ class MercadoPagoController extends Controller
 
         $tenant = \App\Models\Tenant::findOrFail($tenantId);
         $owner  = \App\Models\User::find($tenant->owner_user_id);
-
-        // 2. Si es compra de Propiedad Extra ($79.99 por cada espacio)
-        if ($request->type === 'extra_property' || $request->has('extra_property')) {
-            $quantity = (int) ($request->quantity ?? 1);
-            if ($quantity < 1) $quantity = 1;
-            $amount = round(79.99 * $quantity, 2);
-            $title  = "Propiedad(es) Extra (+{$quantity}) - Plan Personal";
-            $desc   = "Cupo adicional de {$quantity} propiedad(es) para {$tenant->name}";
-            $extRef = "EXT_PROP|" . $tenant->id . "|" . $quantity;
-
-            try {
-                $client = new PreferenceClient();
-                $preference = $client->create([
-                    "items" => [[
-                        "id" => 'EXT_PROP_' . $tenant->id . '_' . $quantity, "title" => $title, "description" => $desc,
-                        "quantity" => $quantity, "unit_price" => 79.99, "currency_id" => "MXN"
-                    ]],
-                    "back_urls" => [
-                        "success" => $frontendUrl . "/activacion-cuenta?status=success&type=extra_property",
-                        "failure" => $frontendUrl . "/activacion-cuenta?status=failure&type=extra_property",
-                        "pending" => $frontendUrl . "/activacion-cuenta?status=pending&type=extra_property"
-                    ],
-                    "auto_return" => "approved", "external_reference" => $extRef,
-                    "notification_url" => env('APP_URL', 'https://agentesolutionsback-production.up.railway.app') . "/api/mercadopago/webhook"
-                ]);
-                return response()->json(['id' => $preference->id, 'init_point' => $preference->init_point, 'sandbox_init_point' => $preference->sandbox_init_point, 'amount' => $amount, 'quantity' => $quantity, 'type' => 'Propiedad Extra']);
-            } catch (\Exception $e) {
-                return response()->json(['error' => 'Error MP', 'details' => $e->getMessage()], 500);
-            }
-        }
 
         // 3. Renovación de Plan Autónomo (Personal, Empresarial, Fundador)
         $option = $request->plan_option ?? 'monthly'; // 'monthly', 'annual', 'completion'
