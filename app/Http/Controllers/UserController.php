@@ -130,6 +130,7 @@ class UserController extends Controller
             }
 
             $user->save();
+            $user->load(['tenant', 'specialties']);
 
             $fotoUrl = $user->profile_picture
                 ? (str_starts_with($user->profile_picture, 'http') ? $user->profile_picture : asset('storage/' . $user->profile_picture))
@@ -138,7 +139,8 @@ class UserController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Perfil de usuario actualizado con éxito.',
-                'new_picture_url' => $fotoUrl
+                'new_picture_url' => $fotoUrl,
+                'user' => $user
             ], 200);
 
         } catch (\Exception $e) {

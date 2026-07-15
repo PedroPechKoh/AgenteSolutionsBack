@@ -155,6 +155,7 @@ class AuthController extends Controller
                 $user->subscription_amount     = 99.00;
             }
             $user->save();
+            $user->load(['tenant', 'specialties']);
 
             return response()->json([
                 'success' => true,
@@ -165,6 +166,7 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
+        $user->load(['tenant', 'specialties']);
 
         return response()->json([
             'success' => true,
@@ -255,7 +257,7 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
-        $user->load('tenant');
+        $user->load(['tenant', 'specialties']);
 
         return response()->json([
             'success' => true,
