@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Notification;
 
 class UserController extends Controller
 {
@@ -283,7 +284,7 @@ class UserController extends Controller
         try {
             $currentUser = auth('sanctum')->user();
 
-            $usersQuery = \App\Models\User::with('specialties')->select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number', 'tenant_id');
+            $usersQuery = \App\Models\User::with('specialties')->select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'approval_status', 'profile_picture', 'phone_number', 'tenant_id');
             
             if ($currentUser && $currentUser->role_id == 4) {
                 // Autónomo: solo ve a usuarios de su misma empresa (o sin tenant si están asignados a él) y a sí mismo. NUNCA Root (0) ni otros Autónomos (4)
@@ -313,6 +314,7 @@ class UserController extends Controller
                     'email' => $u->email,
                     'role_id' => $u->role_id,
                     'is_active' => $u->is_active,
+                    'approval_status' => $u->approval_status,
                     'profile_picture_url' => $fotoUrl,
                     'phone_number' => $u->phone_number,
                     'address' => 'No aplica',
@@ -399,6 +401,38 @@ class UserController extends Controller
         }
     }
 
+    public function deleteMyAccount(Request $request)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) {
+                return response()->json(['error' => 'Usuario no autenticado'], 401);
+            }
+
+            if ((int)$user->role_id === 0) {
+                return response()->json(['error' => 'Acceso Denegado: El administrador ROOT no puede auto-eliminar su cuenta.'], 403);
+            }
+
+            $user->is_active = 0;
+            $user->approval_status = 'deleted_by_user';
+            $user->save();
+
+            // Revocar todos los tokens de Sanctum para cerrar sesión al instante
+            $user->tokens()->delete();
+
+            // Enviar notificación a los usuarios ROOT (role_id === 0)
+            $admins = User::withoutGlobalScopes()->where('role_id', 0)->get();
+            if ($admins->isNotEmpty()) {
+                Notification::send($admins, new \App\Notifications\UserAccountDeletedNotification($user));
+            }
+
+            return response()->json(['message' => 'Tu perfil y cuenta han sido eliminados y cerrados exitosamente.'], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al procesar la eliminación: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function toggleBloqueo($id)
     {
         try {
@@ -450,7 +484,7 @@ class UserController extends Controller
             $query->where('tenant_id', $currentUser->tenant_id);
         }
 
-        $tecnicos = $query->get(['id', 'first_name', 'last_name', 'profile_picture', 'tenant_id']);
+        $tecnicos = $query->get(['id', 'first_name', 'last_name', 'profile_picture', 'tenant_id', 'is_active', 'approval_status']);
         
         $formatted = $tecnicos->map(function ($u) {
             $fotoUrl = $u->profile_picture ? (str_starts_with($u->profile_picture, 'http') ? $u->profile_picture : asset('storage/' . $u->profile_picture)) : null;
@@ -460,7 +494,9 @@ class UserController extends Controller
                 'last_name' => $u->last_name,
                 'profile_picture_url' => $fotoUrl,
                 'specialties' => $u->specialties ?? [],
-                'tenant_id' => $u->tenant_id
+                'tenant_id' => $u->tenant_id,
+                'is_active' => $u->is_active,
+                'approval_status' => $u->approval_status
             ];
         });
 

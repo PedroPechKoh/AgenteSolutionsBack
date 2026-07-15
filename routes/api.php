@@ -186,6 +186,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}/specialties', [SpecialtyController::class, 'getUserSpecialties']);
     Route::post('/users/{id}/specialties', [SpecialtyController::class, 'syncUserSpecialties']);
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
+    Route::delete('/usuarios/delete-my-account', [UserController::class, 'deleteMyAccount']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
     Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
     Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);

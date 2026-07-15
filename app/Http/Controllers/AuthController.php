@@ -200,6 +200,12 @@ class AuthController extends Controller
             ], 403);
         }
 
+        if ($user->approval_status === 'deleted_by_user') {
+            return response()->json([
+                'error' => 'Tu cuenta fue eliminada y desactivada a solicitud del titular. Si deseas restaurar tu acceso o solicitar el respaldo y recuperación de tus datos y propiedades, por favor comunícate con Soporte Técnico.'
+            ], 403);
+        }
+
         if ($user->is_active == 0) {
             return response()->json([
                 'error' => 'No puedes acceder a tu cuenta, por favor contactate con el servicio de soporte.'
