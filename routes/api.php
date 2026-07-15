@@ -24,6 +24,7 @@ use App\Notifications\NewWorkOrderNotification;
 use App\Models\WorkOrder;
 use App\Http\Controllers\MercadoPagoController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\SpecialtyController;
 
 // ========================================================
 // 🟢 ZONA PÚBLICA (Sin Token - Cualquiera puede entrar)
@@ -40,6 +41,7 @@ Route::post('/mercadopago/subscription/{tenantId}', [MercadoPagoController::clas
 
 // Lista pública de empresas autónomas para registro y login
 Route::get('/tenants/public-list', [TenantController::class, 'listTenants']);
+Route::get('/specialties', [SpecialtyController::class, 'index']);
 
 
 // 🧹 RUTA DE EMERGENCIA (Temporalmente Pública para facilitar el Reset)
@@ -180,6 +182,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/tenants/approve-technician/{userId}', [TenantController::class, 'approveTechnician']);
 
     // --- USUARIOS Y PERFILES ---
+    Route::post('/specialties', [SpecialtyController::class, 'store']);
+    Route::post('/users/{id}/specialties', [SpecialtyController::class, 'syncUserSpecialties']);
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
     Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);

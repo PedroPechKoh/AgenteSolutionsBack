@@ -281,7 +281,7 @@ class UserController extends Controller
         try {
             $currentUser = auth('sanctum')->user();
 
-            $usersQuery = \App\Models\User::select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number', 'tenant_id');
+            $usersQuery = \App\Models\User::with('specialties')->select('id', 'first_name', 'last_name', 'email', 'role_id', 'is_active', 'profile_picture', 'phone_number', 'tenant_id');
             
             if ($currentUser && $currentUser->role_id == 4) {
                 // Autónomo: solo ve a usuarios de su misma empresa (o sin tenant si están asignados a él) y a sí mismo. NUNCA Root (0) ni otros Autónomos (4)
@@ -314,6 +314,7 @@ class UserController extends Controller
                     'profile_picture_url' => $fotoUrl,
                     'phone_number' => $u->phone_number,
                     'address' => 'No aplica',
+                    'specialties' => $u->specialties ?? [],
                 ];
             });
 
@@ -439,7 +440,7 @@ class UserController extends Controller
     public function getTecnicos()
     {
         $currentUser = auth('sanctum')->user();
-        $query = User::where('role_id', 2);
+        $query = User::with('specialties')->where('role_id', 2);
         
         if ($currentUser && $currentUser->role_id == 4) {
             $query->where('tenant_id', $currentUser->tenant_id);
@@ -447,7 +448,7 @@ class UserController extends Controller
             $query->where('tenant_id', $currentUser->tenant_id);
         }
 
-        $tecnicos = $query->get(['id', 'first_name', 'last_name', 'profile_picture']);
+        $tecnicos = $query->get(['id', 'first_name', 'last_name', 'profile_picture', 'tenant_id']);
         
         $formatted = $tecnicos->map(function ($u) {
             $fotoUrl = $u->profile_picture ? (str_starts_with($u->profile_picture, 'http') ? $u->profile_picture : asset('storage/' . $u->profile_picture)) : null;
@@ -455,7 +456,9 @@ class UserController extends Controller
                 'id' => $u->id,
                 'first_name' => $u->first_name,
                 'last_name' => $u->last_name,
-                'profile_picture_url' => $fotoUrl
+                'profile_picture_url' => $fotoUrl,
+                'specialties' => $u->specialties ?? [],
+                'tenant_id' => $u->tenant_id
             ];
         });
 

@@ -334,7 +334,7 @@ class TenantController extends Controller
             $query->where('tenant_id', $user->tenant_id);
         }
 
-        $technicians = $query->with('tenant:id,name,code')
+        $technicians = $query->with(['tenant:id,name,code', 'specialties'])
             ->select('id', 'first_name', 'last_name', 'email', 'phone_number', 'created_at', 'tenant_id', 'role_id', 'approval_status', 'is_active')
             ->get();
 

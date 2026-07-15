@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Tenant;
+use App\Models\Specialty;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -38,10 +39,14 @@ class AuthController extends Controller
             }
         }
 
+        $isTechnician = ($request->role_id == 2);
+        if ($isTechnician && empty($tenantId)) {
+            $tenantId = 1; // Si el técnico no ingresó código de empresa, se va directo a Agente Solutions
+        }
+
         $currentUser = auth('sanctum')->user();
         $isRootOrAdmin = ($currentUser && in_array($currentUser->role_id, [0, 1])) || $request->boolean('from_admin');
 
-        $isTechnician = ($request->role_id == 2);
         $isAutonomoEmpresarial = ($request->role_id == 4);
         $isAutonomoPersonal    = ($request->role_id == 5);
         $isAutonomo = $isAutonomoEmpresarial || $isAutonomoPersonal;
@@ -72,6 +77,24 @@ class AuthController extends Controller
             'phone_number'    => $request->phone_number ?? null,
             'is_active'       => $isActive
         ]);
+
+        if ($isTechnician && $request->has('specialties')) {
+            $specialtyIds = [];
+            foreach ((array) $request->specialties as $specItem) {
+                if (is_numeric($specItem)) {
+                    $specialtyIds[] = (int) $specItem;
+                } elseif (is_string($specItem) && trim($specItem) !== '') {
+                    $specObj = Specialty::firstOrCreate(
+                        ['name' => trim($specItem)],
+                        ['icon' => '⚡', 'category' => 'General']
+                    );
+                    $specialtyIds[] = $specObj->id;
+                }
+            }
+            if (!empty($specialtyIds)) {
+                $user->specialties()->sync($specialtyIds);
+            }
+        }
 
         if ($isAutonomo) {
             $membershipType   = $isAutonomoEmpresarial ? 'autonomo_empresarial' : 'autonomo_personal';

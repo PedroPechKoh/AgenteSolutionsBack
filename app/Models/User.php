@@ -79,4 +79,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(\App\Models\Tenant::class, 'tenant_id');
     }
+
+    public function specialties()
+    {
+        return $this->belongsToMany(\App\Models\Specialty::class, 'technician_specialties', 'user_id', 'specialty_id')
+                    ->withPivot('custom_name');
+    }
 }
