@@ -183,6 +183,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- USUARIOS Y PERFILES ---
     Route::post('/specialties', [SpecialtyController::class, 'store']);
+    Route::get('/users/{id}/specialties', [SpecialtyController::class, 'getUserSpecialties']);
     Route::post('/users/{id}/specialties', [SpecialtyController::class, 'syncUserSpecialties']);
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);

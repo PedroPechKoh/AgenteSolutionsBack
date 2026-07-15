@@ -72,4 +72,22 @@ class SpecialtyController extends Controller
             'specialties' => $user->specialties
         ], 200);
     }
+
+    /**
+     * Obtener las especialidades actuales de un usuario
+     */
+    public function getUserSpecialties($userId)
+    {
+        $realId = str_replace('u_', '', $userId);
+        $user = User::find($realId);
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Usuario no encontrado'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'specialties' => $user->specialties
+        ], 200);
+    }
 }
