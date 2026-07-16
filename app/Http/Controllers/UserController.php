@@ -49,23 +49,26 @@ class UserController extends Controller
                     }
                 }
 
-                $fullName = trim($request->input('first_name') . ' ' . $request->input('last_name'));
+                $fullName = trim($request->input('first_name', '') . ' ' . $request->input('last_name', ''));
+                $isActiveClient = $request->has('is_active') && $request->input('is_active') !== null ? $request->input('is_active') : ($cliente->is_active ?? 1);
 
                 $updateData = [
-                    'name' => $fullName,
-                    'email' => $request->input('email'),
-                    'phone' => $phone,
-                    'is_active' => $request->input('is_active'),
+                    'name' => !empty($fullName) ? $fullName : $cliente->name,
+                    'email' => $request->input('email', $cliente->email),
+                    'phone' => $phone !== null ? $phone : $cliente->phone,
+                    'is_active' => $isActiveClient,
                     'updated_at' => now(),
                 ];
 
                 if ($cliente->user_id) {
+                    $userDb = DB::table('users')->where('id', $cliente->user_id)->first();
+                    $isActiveUser = $request->has('is_active') && $request->input('is_active') !== null ? $request->input('is_active') : ($userDb->is_active ?? 1);
                     DB::table('users')->where('id', $cliente->user_id)->update([
-                        'first_name' => $request->input('first_name'),
-                        'last_name' => $request->input('last_name'),
-                        'email' => $request->input('email'),
-                        'phone_number' => $phone,
-                        'is_active' => $request->input('is_active'),
+                        'first_name' => $request->input('first_name', $userDb->first_name ?? ''),
+                        'last_name' => $request->input('last_name', $userDb->last_name ?? ''),
+                        'email' => $request->input('email', $userDb->email ?? ''),
+                        'phone_number' => $phone !== null ? $phone : ($userDb->phone_number ?? ''),
+                        'is_active' => $isActiveUser,
                         'updated_at' => now(),
                     ]);
                 }
@@ -117,11 +120,21 @@ class UserController extends Controller
                 }
             }
 
-            $user->first_name = $request->input('first_name');
-            $user->last_name = $request->input('last_name');
-            $user->email = $request->input('email');
-            $user->phone_number = $phone;
-            $user->is_active = $request->input('is_active');
+            if ($request->has('first_name') && $request->input('first_name') !== null) {
+                $user->first_name = $request->input('first_name');
+            }
+            if ($request->has('last_name') && $request->input('last_name') !== null) {
+                $user->last_name = $request->input('last_name');
+            }
+            if ($request->has('email') && $request->input('email') !== null) {
+                $user->email = $request->input('email');
+            }
+            if ($phone !== null) {
+                $user->phone_number = $phone;
+            }
+            if ($request->has('is_active') && $request->input('is_active') !== null) {
+                $user->is_active = $request->input('is_active');
+            }
 
             if ($profilePicturePath) {
                 if ($user->profile_picture && !str_starts_with($user->profile_picture, 'http')) {
