@@ -186,12 +186,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/{id}/specialties', [SpecialtyController::class, 'getUserSpecialties']);
     Route::post('/users/{id}/specialties', [SpecialtyController::class, 'syncUserSpecialties']);
     Route::get('/usuarios', [UserController::class, 'getUsuarios']);
+    Route::get('/users', [UserController::class, 'getUsuarios']);
     Route::delete('/usuarios/delete-my-account', [UserController::class, 'deleteMyAccount']);
+    Route::delete('/users/delete-my-account', [UserController::class, 'deleteMyAccount']);
     Route::delete('/usuarios/{id}', [UserController::class, 'eliminarUsuario']);
+    Route::delete('/users/{id}', [UserController::class, 'eliminarUsuario']);
     Route::put('/usuarios/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
+    Route::put('/users/{id}/toggle-bloqueo', [UserController::class, 'toggleBloqueo']);
     Route::post('/usuarios/update-profile', [UserController::class, 'updateProfile']);
+    Route::post('/users/update-profile', [UserController::class, 'updateProfile']);
     Route::put('/usuarios/{id}/rol', [UserController::class, 'updateRole']);
+    Route::put('/users/{id}/rol', [UserController::class, 'updateRole']);
     Route::get('/usuarios/tecnicos', [UserController::class, 'getTecnicos']);
+    Route::get('/users/tecnicos', [UserController::class, 'getTecnicos']);
 
     Route::post('/upload-profile-picture', [ImageController::class, 'uploadProfilePicture']);
     Route::post('/update-photos', function (\Illuminate\Http\Request $request) {

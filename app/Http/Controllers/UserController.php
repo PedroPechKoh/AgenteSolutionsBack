@@ -430,6 +430,10 @@ class UserController extends Controller
             $user->approval_status = 'deleted_by_user';
             $user->save();
 
+            if ((int)$user->role_id === 3) {
+                DB::table('clients')->where('user_id', $user->id)->update(['is_active' => 0]);
+            }
+
             // Revocar todos los tokens de Sanctum para cerrar sesión al instante
             $user->tokens()->delete();
 
