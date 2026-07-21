@@ -34,6 +34,17 @@ use App\Http\Controllers\JobQuoteController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
+Route::get('/test-email', function () {
+    try {
+        \Illuminate\Support\Facades\Mail::raw('Este es un correo de prueba de Resend', function($msg) { 
+            $msg->to('ppechkoh@gmail.com')->subject('Prueba Resend'); 
+        });
+        return response()->json(['success' => true, 'message' => 'Correo enviado exitosamente con la configuración actual.']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()]);
+    }
+});
+
 // Verificación de Correo (rutas públicas)
 Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail']);
