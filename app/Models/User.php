@@ -10,7 +10,7 @@ use App\Traits\TenantScoped;
 
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, TenantScoped;
 

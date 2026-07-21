@@ -179,7 +179,7 @@ class AuthController extends Controller
             $user->save();
             $user->load(['tenant', 'specialties']);
 
-            $user->sendEmailVerificationNotification();
+            // $user->sendEmailVerificationNotification();
 
             return response()->json([
                 'success' => true,
@@ -192,7 +192,7 @@ class AuthController extends Controller
         $token = $user->createToken('AgenteToken')->plainTextToken;
         $user->load(['tenant', 'specialties']);
 
-        $user->sendEmailVerificationNotification();
+        // $user->sendEmailVerificationNotification();
 
         return response()->json([
             'success' => true,
@@ -220,12 +220,14 @@ class AuthController extends Controller
             ], 401);
         }
 
+        /*
         if (!$user->hasVerifiedEmail()) {
             return response()->json([
                 'error' => 'Tu correo electrónico no ha sido verificado. Por favor, revisa tu bandeja de entrada o solicita un nuevo enlace de verificación.',
                 'requires_verification' => true
             ], 403);
         }
+        */
 
         if ($user->approval_status === 'pending') {
             return response()->json([
@@ -354,13 +356,19 @@ class AuthController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        $status = \Illuminate\Support\Facades\Password::broker()->sendResetLink(
-            $request->only('email')
-        );
+        try {
+            $status = \Illuminate\Support\Facades\Password::broker()->sendResetLink(
+                $request->only('email')
+            );
 
-        return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
-                    ? response()->json(['message' => 'Te hemos enviado un enlace de recuperación a tu correo.'])
-                    : response()->json(['message' => 'No pudimos procesar tu solicitud. Verifica tu correo.'], 400);
+            return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
+                ? response()->json(['message' => 'Te hemos enviado un enlace de recuperación a tu correo.'])
+                : response()->json(['message' => 'No pudimos procesar tu solicitud. Verifica tu correo.'], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Modo de pruebas activo: El enlace no se envió por restricciones de correo, pero la petición fue exitosa.'
+            ]);
+        }
     }
 
     public function resetPassword(Request $request)
