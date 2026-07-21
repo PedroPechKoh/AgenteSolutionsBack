@@ -71,7 +71,7 @@ class AuthController extends Controller
 
         $approvalStatus = ($isTechnician && !$isRootOrAdmin) ? 'pending' : 'approved';
         if ($request->role_id == 7) {
-            $approvalStatus = 'pending_link';
+            $approvalStatus = $tenantId ? 'pending' : 'pending_link';
         }
 
         // Autónomos creados por Root/Admin quedan activos inmediatamente; públicos quedan inactivos hasta pagar
@@ -231,7 +231,7 @@ class AuthController extends Controller
 
         if ($user->approval_status === 'pending') {
             return response()->json([
-                'error' => 'Tu perfil de Técnico ha sido registrado y está en espera de ser revisado y autorizado por el Administrador de tu empresa.'
+                'error' => 'Tu perfil está en espera de ser revisado y autorizado por el Administrador de tu empresa.'
             ], 403);
         }
 
