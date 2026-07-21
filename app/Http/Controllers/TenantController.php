@@ -327,7 +327,7 @@ class TenantController extends Controller
         $user = auth()->user();
         
         $query = User::withoutGlobalScopes()
-            ->where('role_id', 2)
+            ->whereIn('role_id', [2, 7])
             ->where('approval_status', 'pending');
 
         if ($user->role_id !== 0) {
@@ -365,7 +365,7 @@ class TenantController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Técnico autorizado y dado de alta exitosamente.',
+            'message' => 'Usuario autorizado y dado de alta exitosamente.',
             'technician' => $technician
         ]);
     }
