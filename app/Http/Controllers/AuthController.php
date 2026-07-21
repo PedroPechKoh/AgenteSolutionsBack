@@ -47,21 +47,28 @@ class AuthController extends Controller
         $currentUser = auth('sanctum')->user();
         $isRootOrAdmin = ($currentUser && in_array($currentUser->role_id, [0, 1])) || $request->boolean('from_admin');
 
-        $isAutonomoEmpresarial = ($request->role_id == 4);
+        $isAutonomoEmpresarial = ($request->role_id == 4 || $request->role_id == 6);
         $isAutonomoPersonal    = ($request->role_id == 5);
         $isAutonomo = $isAutonomoEmpresarial || $isAutonomoPersonal;
 
-        // Precios de suscripción por tipo
-        $subscriptionPrices = [4 => 999.00, 5 => 499.00];
+        // Precios de suscripción por tipo (Contratista usa el mismo que Empresarial)
+        $subscriptionPrices = [4 => 999.00, 5 => 499.00, 6 => 999.00];
 
         $approvalStatus = ($isTechnician && !$isRootOrAdmin) ? 'pending' : 'approved';
+        if ($request->role_id == 7) {
+            $approvalStatus = 'pending_link';
+        }
+
         // Autónomos creados por Root/Admin quedan activos inmediatamente; públicos quedan inactivos hasta pagar
         $isActive = ($isTechnician && !$isRootOrAdmin) ? 0 : ($isAutonomo && !$isRootOrAdmin ? 0 : 1);
+        if ($request->role_id == 7) {
+            $isActive = 0;
+        }
 
         $roleToAssign = $request->role_id;
 
         // A PRUEBA DE BALAS: Asegurar que el rol exista en la tabla roles
-        foreach ([4, 5] as $rId) {
+        foreach ([4, 5, 6, 7] as $rId) {
             \DB::table('roles')->insertOrIgnore(['id' => $rId, 'created_at' => now(), 'updated_at' => now()]);
         }
         \DB::table('roles')->insertOrIgnore(['id' => $roleToAssign, 'created_at' => now(), 'updated_at' => now()]);
@@ -97,7 +104,7 @@ class AuthController extends Controller
         }
 
         if ($isAutonomo) {
-            $membershipType   = $isAutonomoEmpresarial ? 'autonomo_empresarial' : 'autonomo_personal';
+            $membershipType   = $isAutonomoPersonal ? 'autonomo_personal' : ($request->role_id == 6 ? 'contratista' : 'autonomo_empresarial');
             $subscriptionAmt  = $isAutonomoPersonal ? 299.00 : 935.00;
             $customCode       = !empty($request->company_code) ? trim($request->company_code) : ('AUT' . ($isAutonomoPersonal ? '_P' : '_E') . '_' . time() . '_' . $user->id);
             $companyName      = !empty($request->company_name) ? trim($request->company_name) : trim($user->first_name . ' ' . $user->last_name);
