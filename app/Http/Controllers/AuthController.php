@@ -179,6 +179,8 @@ class AuthController extends Controller
             $user->save();
             $user->load(['tenant', 'specialties']);
 
+            $user->sendEmailVerificationNotification();
+
             return response()->json([
                 'success' => true,
                 'status' => 'pending_approval',
@@ -189,6 +191,8 @@ class AuthController extends Controller
 
         $token = $user->createToken('AgenteToken')->plainTextToken;
         $user->load(['tenant', 'specialties']);
+
+        $user->sendEmailVerificationNotification();
 
         return response()->json([
             'success' => true,
@@ -214,6 +218,13 @@ class AuthController extends Controller
             return response()->json([
                 'message' => 'Credenciales incorrectas. Verifica tus datos y contraseña.'
             ], 401);
+        }
+
+        if (!$user->hasVerifiedEmail()) {
+            return response()->json([
+                'error' => 'Tu correo electrónico no ha sido verificado. Por favor, revisa tu bandeja de entrada o solicita un nuevo enlace de verificación.',
+                'requires_verification' => true
+            ], 403);
         }
 
         if ($user->approval_status === 'pending') {
@@ -301,22 +312,75 @@ class AuthController extends Controller
         return response()->json(['message' => 'Sesión cerrada correctamente'], 200);
     }
 
-    public function recoverPassword(Request $request)
+    public function verifyEmail(Request $request, $id, $hash)
+    {
+        $user = User::withoutGlobalScopes()->findOrFail($id);
+
+        if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+            return response()->json(['message' => 'Enlace de verificación inválido o expirado.'], 403);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'El correo ya ha sido verificado anteriormente.'], 200);
+        }
+
+        if ($user->markEmailAsVerified()) {
+            event(new \Illuminate\Auth\Events\Verified($user));
+        }
+
+        return response()->json(['message' => 'Correo verificado exitosamente.'], 200);
+    }
+
+    public function resendVerificationEmail(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+        
+        $user = User::withoutGlobalScopes()->where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Usuario no encontrado.'], 404);
+        }
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'El correo ya ha sido verificado.'], 400);
+        }
+
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Enlace de verificación reenviado.'], 200);
+    }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $status = \Illuminate\Support\Facades\Password::broker()->sendResetLink(
+            $request->only('email')
+        );
+
+        return $status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT
+                    ? response()->json(['message' => 'Te hemos enviado un enlace de recuperación a tu correo.'])
+                    : response()->json(['message' => 'No pudimos procesar tu solicitud. Verifica tu correo.'], 400);
+    }
+
+    public function resetPassword(Request $request)
     {
         $request->validate([
-            'email' => 'required|email|exists:users,email',
-            'new_password' => 'required|string|min:6'
-        ], [
-            'email.exists' => 'No encontramos ninguna cuenta con ese correo electrónico.'
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:6',
         ]);
 
-        $user = User::where('email', $request->email)->first();
-        $user->password = Hash::make($request->new_password);
-        $user->save();
+        $status = \Illuminate\Support\Facades\Password::broker()->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->password = Hash::make($password);
+                $user->save();
+            }
+        );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Contraseña actualizada correctamente.'
-        ]);
+        return $status === \Illuminate\Support\Facades\Password::PASSWORD_RESET
+                    ? response()->json(['success' => true, 'message' => 'Contraseña restablecida correctamente.'])
+                    : response()->json(['success' => false, 'message' => 'El token es inválido o ha expirado.'], 400);
     }
 }

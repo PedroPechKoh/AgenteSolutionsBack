@@ -33,7 +33,14 @@ use App\Http\Controllers\JobQuoteController;
 // ========================================================
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::post('/recover-password', [AuthController::class, 'recoverPassword']);
+
+// Verificación de Correo (rutas públicas)
+Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])->name('verification.verify');
+Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail']);
+
+// Recuperación de contraseña (rutas públicas)
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
 // Webhook de MercadoPago (Público para que MP pueda avisarnos del pago)
 Route::post('/mercadopago/webhook', [MercadoPagoController::class, 'webhook']);
