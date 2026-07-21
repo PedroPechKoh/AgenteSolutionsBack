@@ -13,6 +13,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
         "mercadopago/dx-php": "^3.10",
+        "resend/resend-php": "^1.6",
         "symfony/resend-mailer": "^7.4"
     },
     "require-dev": {
