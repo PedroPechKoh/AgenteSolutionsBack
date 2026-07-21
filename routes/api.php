@@ -52,6 +52,7 @@ Route::post('/email/resend', [AuthController::class, 'resendVerificationEmail'])
 // Recuperación de contraseña (rutas públicas)
 Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
 Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+Route::post('/vincular-empresa', [AuthController::class, 'linkCompany']);
 
 // Webhook de MercadoPago (Público para que MP pueda avisarnos del pago)
 Route::post('/mercadopago/webhook', [MercadoPagoController::class, 'webhook']);

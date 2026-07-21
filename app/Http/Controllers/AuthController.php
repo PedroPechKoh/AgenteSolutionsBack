@@ -231,7 +231,19 @@ class AuthController extends Controller
 
         if ($user->approval_status === 'pending') {
             return response()->json([
+                'status' => 'pending',
+                'user_id' => $user->id,
+                'email' => $user->email,
                 'error' => 'Tu perfil está en espera de ser revisado y autorizado por el Administrador de tu empresa.'
+            ], 403);
+        }
+
+        if ($user->approval_status === 'pending_link') {
+            return response()->json([
+                'status' => 'pending_link',
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'error' => 'No tienes un Autónomo o Empresa vinculada. Por favor ingresa el código.'
             ], 403);
         }
 
@@ -390,5 +402,36 @@ class AuthController extends Controller
         return $status === \Illuminate\Support\Facades\Password::PASSWORD_RESET
                     ? response()->json(['success' => true, 'message' => 'Contraseña restablecida correctamente.'])
                     : response()->json(['success' => false, 'message' => 'El token es inválido o ha expirado.'], 400);
+    }
+
+    public function linkCompany(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'company_code' => 'required|string',
+        ]);
+
+        $user = User::findOrFail($request->user_id);
+        
+        $tenant = Tenant::where('code', $request->company_code)
+                        ->orWhere('phone', $request->company_code)
+                        ->first();
+                        
+        if (!$tenant) {
+            return response()->json([
+                'success' => false,
+                'message' => 'El código de empresa ingresado no existe.'
+            ], 404);
+        }
+
+        $user->tenant_id = $tenant->id;
+        $user->approval_status = 'pending';
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Vinculación exitosa. Tu cuenta ahora está en espera de aprobación por el administrador de ' . $tenant->name,
+            'status' => 'pending'
+        ]);
     }
 }
