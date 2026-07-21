@@ -76,4 +76,9 @@ class Tenant extends Model
     {
         return $this->hasMany(Service::class, 'tenant_id');
     }
+
+    public function propertyManager()
+    {
+        return $this->hasOne(PropertyManager::class, 'tenant_id');
+    }
 }
