@@ -47,7 +47,7 @@ class NewWorkOrderNotification extends Notification
                  ->line("![Foto 2]({$this->workOrder->evidence_path_2})");
         }
 
-        return $mail->action('Ver Levantamientos', url('/levantamientos'))
+        return $mail->action('Ver Servicios', url('/tablero-servicios?jobId=' . $this->workOrder->id))
             ->line('Gracias por usar Agente Solutions.');
     }
 
@@ -55,10 +55,11 @@ class NewWorkOrderNotification extends Notification
     {
         return [
             'work_order_id' => $this->workOrder->id,
-            'alert_type' => 'new_work_order',
+            'service_id' => $this->workOrder->id,
+            'alert_type' => 'new_service_requested',
             'title' => 'Nueva Solicitud de Servicio',
             'message' => "{$this->userName} solicitó {$this->workOrder->type} en {$this->propertyName}",
-            'url' => "/levantamientos"
+            'url' => "/tablero-servicios?jobId={$this->workOrder->id}"
         ];
     }
 }
