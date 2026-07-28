@@ -527,9 +527,19 @@ class ServiceController extends Controller
 
             if ($parsed['isWorkOrder']) {
                 $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
-                $isWorkOrder = true;
+                if ($model) {
+                    $isWorkOrder = true;
+                } else {
+                    $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
+                }
             } elseif ($parsed['isService']) {
                 $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
+                if (!$model) {
+                    $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                    if ($model) {
+                        $isWorkOrder = true;
+                    }
+                }
             } else {
                 // Fallback: Buscar en WorkOrder primero si es numérico, luego en Service
                 $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
