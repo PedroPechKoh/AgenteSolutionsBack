@@ -1047,6 +1047,18 @@ class ServiceController extends Controller
             $item->arrival_status = 'EN_SITIO';
             $item->save();
 
+            // Guardar o actualizar ubicación en vivo del técnico
+            if ($user && $lat && $lng) {
+                DB::table('technician_locations')->updateOrInsert(
+                    ['user_id' => $user->id],
+                    [
+                        'latitude' => $lat,
+                        'longitude' => $lng,
+                        'updated_at' => $now
+                    ]
+                );
+            }
+
             // Notificar a Root, Admins y Cliente de la llegada del técnico
             try {
                 $property = \App\Models\Property::withoutGlobalScopes()->find($item->property_id);
@@ -1089,6 +1101,7 @@ class ServiceController extends Controller
                 return response()->json(['error' => 'Acceso denegado. Exclusivo para Usuario Root.'], 403);
             }
 
+            // 1. Obtener técnicos de technician_locations
             $locations = DB::table('technician_locations')
                 ->join('users', 'technician_locations.user_id', '=', 'users.id')
                 ->select(
@@ -1103,9 +1116,34 @@ class ServiceController extends Controller
                     'users.phone_number',
                     'users.profile_picture'
                 )
+                ->get()
+                ->keyBy('user_id');
+
+            // 2. Incluir técnicos con trabajos asignados o arribo confirmado incluso si no han enviado GPS continuo
+            $techsAssigned = DB::table('users')
+                ->whereIn('role_id', [2])
+                ->select('id as user_id', 'first_name', 'last_name', 'email', 'phone_number', 'profile_picture')
                 ->get();
 
-            $result = $locations->map(function ($tech) {
+            foreach ($techsAssigned as $t) {
+                if (!$locations->has($t->user_id)) {
+                    $woArrived = DB::table('work_orders')
+                        ->where('tecnico_id', $t->user_id)
+                        ->whereNotNull('arrived_latitude')
+                        ->latest('updated_at')
+                        ->first();
+
+                    if ($woArrived) {
+                        $t->latitude = $woArrived->arrived_latitude;
+                        $t->longitude = $woArrived->arrived_longitude;
+                        $t->last_gps_update = $woArrived->arrived_at;
+                        $t->location_id = null;
+                        $locations->put($t->user_id, $t);
+                    }
+                }
+            }
+
+            $result = $locations->values()->map(function ($tech) {
                 $workOrders = DB::table('work_orders')
                     ->join('properties', 'work_orders.property_id', '=', 'properties.id')
                     ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
@@ -1168,24 +1206,24 @@ class ServiceController extends Controller
                     })
                     ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
                     ->get()
-                    ->map(function($srv) {
-                        $srv->composite_id = "servicio-{$srv->id}";
-                        $srv->tipo_registro = 'servicio';
-                        return $srv;
+                    ->map(function($s) {
+                        $s->composite_id = "servicio-{$s->id}";
+                        $s->tipo_registro = 'servicio';
+                        return $s;
                     });
 
-                $tech->assigned_jobs = $workOrders->concat($servicios);
+                $tech->assigned_jobs = $workOrders->concat($servicios)->values();
                 return $tech;
             });
 
             return response()->json([
                 'success' => true,
                 'data' => $result
-            ]);
+            ], 200);
 
         } catch (\Exception $e) {
-            return response()->json(['error' => 'Error al obtener datos en vivo para el mapa: ' . $e->getMessage()], 500);
+            Log::error("Error en getRootTechniciansLiveMap: " . $e->getMessage());
+            return response()->json(['error' => 'Error al obtener mapa de técnicos: ' . $e->getMessage()], 500);
         }
     }
 }
-
