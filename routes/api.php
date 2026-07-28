@@ -33,7 +33,6 @@ use App\Http\Controllers\JobQuoteController;
 // ========================================================
 
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/debug-gps', [ServiceController::class, 'debugGps']);
 
 Route::get('/test-email', function () {
     try {
