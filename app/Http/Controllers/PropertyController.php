@@ -565,8 +565,8 @@ class PropertyController extends Controller
                     
                     $propertyName = $workOrder->property ? ($workOrder->property->property_name ?: $workOrder->property->address) : 'Propiedad desconocida';
                     
-                    // Obtenemos administradores (rol 1 y 0)
-                    $admins = User::whereIn('role_id', [0, 1])->get();
+                    // Obtenemos administradores (rol 1 y 0) independientemente de tenant_id
+                    $admins = User::withoutGlobalScopes()->whereIn('role_id', [0, 1])->get();
                     
                     Notification::send($admins, new \App\Notifications\WorkOrderFinishedNotification($workOrder, $technicianName, $propertyName));
                     \Log::info("Notificación de trabajo finalizado enviada a admins.");
