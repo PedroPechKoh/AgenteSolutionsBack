@@ -23,24 +23,29 @@ class AuthController extends Controller
             'company_code' => 'nullable|string',
             'tenant_id' => 'nullable|integer',
             'company_name' => 'nullable|string|max:191',
-            'captcha_token' => 'required|string'
+            'captcha_token' => $request->boolean('from_admin') ? 'nullable|string' : 'required|string'
         ], [
             'email.unique' => 'Este correo electrónico ya está registrado en otra cuenta.',
             'phone_number.unique' => 'Este número de teléfono ya está registrado en otra cuenta.',
             'captcha_token.required' => 'Por favor verifica que no eres un robot.'
         ]);
 
-        // Validar con Google reCAPTCHA
-        $recaptchaResponse = \Illuminate\Support\Facades\Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
-            'secret' => env('RECAPTCHA_SECRET_KEY', '6LfHnl4tAAAAAD5Ig1yZydacMJk_VOg8ObxIs8K3'),
-            'response' => $request->captcha_token,
-        ]);
+        $currentUser = auth('sanctum')->user();
+        $isRootOrAdmin = ($currentUser && in_array($currentUser->role_id, [0, 1])) || $request->boolean('from_admin');
 
-        $recaptchaData = $recaptchaResponse->json();
-        if (!$recaptchaData['success']) {
-            return response()->json([
-                'errors' => ['captcha' => ['La validación del reCAPTCHA ha fallado. Por favor recarga la página e intenta de nuevo.']]
-            ], 422);
+        // Validar con Google reCAPTCHA únicamente si no es un registro administrativo
+        if (!$isRootOrAdmin) {
+            $recaptchaResponse = \Illuminate\Support\Facades\Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+                'secret' => env('RECAPTCHA_SECRET_KEY', '6LfHnl4tAAAAAD5Ig1yZydacMJk_VOg8ObxIs8K3'),
+                'response' => $request->captcha_token,
+            ]);
+
+            $recaptchaData = $recaptchaResponse->json();
+            if (!$recaptchaData['success']) {
+                return response()->json([
+                    'errors' => ['captcha' => ['La validación del reCAPTCHA ha fallado. Por favor recarga la página e intenta de nuevo.']]
+                ], 422);
+            }
         }
 
         // Buscar tenant por código o ID
