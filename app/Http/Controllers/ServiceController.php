@@ -1158,7 +1158,7 @@ class ServiceController extends Controller
                               ->orWhere('work_order_technician.technician_id', $t->user_id);
                         })
                         ->whereNotIn('work_orders.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
-                        ->select('work_orders.arrived_latitude', 'work_orders.arrived_longitude', 'work_orders.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
+                        ->select('work_orders.arrived_latitude', 'work_orders.arrived_longitude', 'work_orders.arrived_at', 'properties.coordinates')
                         ->latest('work_orders.updated_at')
                         ->first();
 
@@ -1171,7 +1171,7 @@ class ServiceController extends Controller
                                   ->orWhere('service_technician.technician_id', $t->user_id);
                             })
                             ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
-                            ->select('services.arrived_latitude', 'services.arrived_longitude', 'services.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
+                            ->select('services.arrived_latitude', 'services.arrived_longitude', 'services.arrived_at', 'properties.coordinates')
                             ->latest('services.updated_at')
                             ->first();
                     }
@@ -1179,11 +1179,11 @@ class ServiceController extends Controller
                     \Log::info("Tech ID {$t->user_id} activeJob: " . ($activeJob ? "FOUND" : "NOT FOUND"));
 
                     if ($activeJob) {
-                        // Si ya llegó, usar arrived_latitude, de lo contrario intentar usar la latitud de la propiedad
-                        $t->latitude = $activeJob->arrived_latitude ?? $activeJob->prop_lat ?? null;
-                        $t->longitude = $activeJob->arrived_longitude ?? $activeJob->prop_lng ?? null;
+                        // Si ya llegó, usar arrived_latitude, de lo contrario intentar usar las coordenadas de la propiedad
+                        $t->latitude = $activeJob->arrived_latitude ?? null;
+                        $t->longitude = $activeJob->arrived_longitude ?? null;
 
-                        // Si properties.coordinates tiene "lat,lng" pero prop_lat está nulo, extraemos de ahí
+                        // Si properties.coordinates tiene "lat,lng" pero latitud está nula, extraemos de ahí
                         if (!$t->latitude && $activeJob->coordinates) {
                             $parts = explode(',', $activeJob->coordinates);
                             if (count($parts) >= 2) {
@@ -1194,7 +1194,9 @@ class ServiceController extends Controller
 
                         $t->last_gps_update = $activeJob->arrived_at ?? null;
                         $t->location_id = null;
-                        $locations->put($t->user_id, $t);
+                        if ($t->latitude && $t->longitude) {
+                            $locations->put($t->user_id, $t);
+                        }
                     }
                 }
             }
@@ -1218,8 +1220,7 @@ class ServiceController extends Controller
                         'properties.id as property_id',
                         'properties.property_name',
                         'properties.address',
-                        'properties.latitude as property_latitude',
-                        'properties.longitude as property_longitude',
+                        'properties.coordinates as property_coordinates',
                         'clients.name as client_name',
                         'clients.phone as client_phone'
                     )
@@ -1233,6 +1234,16 @@ class ServiceController extends Controller
                         $wo->composite_id = "work_order-{$wo->id}";
                         $wo->tipo_registro = 'work_order';
                         $wo->title = ($wo->type ?? 'Trabajo') . ' - ' . ($wo->zone ?? 'General');
+                        
+                        $wo->property_latitude = null;
+                        $wo->property_longitude = null;
+                        if (!empty($wo->property_coordinates)) {
+                            $parts = explode(',', $wo->property_coordinates);
+                            if (count($parts) >= 2) {
+                                $wo->property_latitude = (float) trim($parts[0]);
+                                $wo->property_longitude = (float) trim($parts[1]);
+                            }
+                        }
                         return $wo;
                     });
 
@@ -1253,8 +1264,7 @@ class ServiceController extends Controller
                         'properties.id as property_id',
                         'properties.property_name',
                         'properties.address',
-                        'properties.latitude as property_latitude',
-                        'properties.longitude as property_longitude',
+                        'properties.coordinates as property_coordinates',
                         'clients.name as client_name',
                         'clients.phone as client_phone'
                     )
@@ -1267,6 +1277,16 @@ class ServiceController extends Controller
                     ->map(function($s) {
                         $s->composite_id = "servicio-{$s->id}";
                         $s->tipo_registro = 'servicio';
+                        
+                        $s->property_latitude = null;
+                        $s->property_longitude = null;
+                        if (!empty($s->property_coordinates)) {
+                            $parts = explode(',', $s->property_coordinates);
+                            if (count($parts) >= 2) {
+                                $s->property_latitude = (float) trim($parts[0]);
+                                $s->property_longitude = (float) trim($parts[1]);
+                            }
+                        }
                         return $s;
                     });
 
