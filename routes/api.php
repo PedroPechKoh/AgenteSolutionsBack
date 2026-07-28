@@ -367,6 +367,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/tecnico/{id}/servicios', [ServiceController::class, 'getTecnicoServicios']);
     Route::get('/tecnico/{idTecnico}/propiedad/{idPropiedad}/servicios', [ServiceController::class, 'getServicesByProperty']);
 
+    // --- RASTREO GPS Y CONFIRMACIÓN DE LLEGADA ---
+    Route::post('/technician/update-location', [ServiceController::class, 'updateTechnicianLocation']);
+    Route::post('/work-orders/{id}/confirm-arrival', [ServiceController::class, 'confirmArrival']);
+    Route::get('/root/technicians-live-map', [ServiceController::class, 'getRootTechniciansLiveMap']);
+
     Route::post('/propiedades/servicios', [PropertyController::class, 'storeWorkOrder']);
     Route::get('/propiedades/{id}/work-orders', [PropertyController::class, 'getWorkOrders']);
     Route::put('/work-orders/{id}/status', [PropertyController::class, 'updateWorkOrderStatus']);

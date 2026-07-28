@@ -1002,5 +1002,208 @@ class ServiceController extends Controller
             ];
         });
     }
+
+    public function updateTechnicianLocation(Request $request)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user) {
+                return response()->json(['error' => 'No autenticado'], 401);
+            }
+
+            $request->validate([
+                'latitude' => 'required|numeric',
+                'longitude' => 'required|numeric',
+            ]);
+
+            \App\Models\TechnicianLocation::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'latitude' => $request->latitude,
+                    'longitude' => $request->longitude,
+                    'updated_at' => now()
+                ]
+            );
+
+            return response()->json(['success' => true, 'message' => 'Ubicación actualizada correctamente']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al actualizar ubicación: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function confirmArrival(Request $request, $id)
+    {
+        try {
+            $user = auth('sanctum')->user();
+            $realId = $id;
+            $isWorkOrder = false;
+
+            if (str_contains($id, '-') || str_contains($id, '_')) {
+                if (str_starts_with($id, 'work_order_') || str_starts_with($id, 'work_order-') || str_starts_with($id, 'work-order-')) {
+                    $isWorkOrder = true;
+                    $realId = preg_replace('/^work[_-]order[_-]/i', '', $id);
+                } elseif (str_starts_with($id, 'servicio_') || str_starts_with($id, 'servicio-')) {
+                    $isWorkOrder = false;
+                    $realId = preg_replace('/^servicio[_-]/i', '', $id);
+                } elseif (str_contains($id, '-')) {
+                    $parts = explode('-', $id);
+                    $isWorkOrder = ($parts[0] === 'work_order');
+                    $realId = $parts[1];
+                } elseif (str_contains($id, '_')) {
+                    $parts = explode('_', $id);
+                    $isWorkOrder = ($parts[0] === 'work_order');
+                    $realId = $parts[1];
+                }
+            }
+
+            $lat = $request->latitude ?? null;
+            $lng = $request->longitude ?? null;
+            $now = now();
+
+            if ($isWorkOrder) {
+                $item = WorkOrder::find($realId);
+            } else {
+                $item = Service::find($realId);
+            }
+
+            if (!$item) {
+                return response()->json(['error' => 'Trabajo no encontrado'], 404);
+            }
+
+            $item->arrived_at = $now;
+            $item->arrived_latitude = $lat;
+            $item->arrived_longitude = $lng;
+            $item->arrival_status = 'EN_SITIO';
+            $item->save();
+
+            // Opcional: enviar notificación al Admin
+            try {
+                $admins = User::whereIn('role_id', [0, 1])->get();
+                $techName = $user ? ($user->first_name . ' ' . $user->last_name) : 'El técnico';
+                $propName = $item->property ? ($item->property->property_name ?? $item->property->address) : 'la propiedad';
+                
+                Notification::send($admins, new \App\Notifications\VisitConfirmed($item));
+            } catch (\Exception $notifErr) {
+                Log::warning("No se pudo notificar al admin de la llegada: " . $notifErr->getMessage());
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Llegada confirmada con éxito.',
+                'arrived_at' => $now->format('H:i:s'),
+                'arrival_status' => 'EN_SITIO'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al confirmar llegada: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function getRootTechniciansLiveMap()
+    {
+        try {
+            $user = auth('sanctum')->user();
+            if (!$user || !in_array((int)$user->role_id, [0, 1])) {
+                return response()->json(['error' => 'Acceso denegado. Exclusivo para Usuario Root.'], 403);
+            }
+
+            $locations = DB::table('technician_locations')
+                ->join('users', 'technician_locations.user_id', '=', 'users.id')
+                ->select(
+                    'technician_locations.id as location_id',
+                    'technician_locations.user_id',
+                    'technician_locations.latitude',
+                    'technician_locations.longitude',
+                    'technician_locations.updated_at as last_gps_update',
+                    'users.first_name',
+                    'users.last_name',
+                    'users.email',
+                    'users.phone_number',
+                    'users.profile_picture'
+                )
+                ->get();
+
+            $result = $locations->map(function ($tech) {
+                $workOrders = DB::table('work_orders')
+                    ->join('properties', 'work_orders.property_id', '=', 'properties.id')
+                    ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                    ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
+                    ->select(
+                        'work_orders.id',
+                        'work_orders.title',
+                        'work_orders.description',
+                        'work_orders.status',
+                        'work_orders.arrival_status',
+                        'work_orders.arrived_at',
+                        'work_orders.arrived_latitude',
+                        'work_orders.arrived_longitude',
+                        'work_orders.scheduled_at as scheduled_time',
+                        'properties.id as property_id',
+                        'properties.property_name',
+                        'properties.address',
+                        'properties.latitude as property_latitude',
+                        'properties.longitude as property_longitude',
+                        'clients.name as client_name',
+                        'clients.phone as client_phone'
+                    )
+                    ->where(function ($q) use ($tech) {
+                        $q->where('work_orders.tecnico_id', $tech->user_id)
+                          ->orWhere('work_order_technician.technician_id', $tech->user_id);
+                    })
+                    ->whereNotIn('work_orders.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                    ->get()
+                    ->map(function($wo) {
+                        $wo->composite_id = "work_order-{$wo->id}";
+                        $wo->tipo_registro = 'work_order';
+                        return $wo;
+                    });
+
+                $servicios = DB::table('services')
+                    ->join('properties', 'services.property_id', '=', 'properties.id')
+                    ->leftJoin('clients', 'properties.client_id', '=', 'clients.id')
+                    ->leftJoin('service_technician', 'services.id', '=', 'service_technician.service_id')
+                    ->select(
+                        'services.id',
+                        'services.title',
+                        'services.description',
+                        'services.status',
+                        'services.arrival_status',
+                        'services.arrived_at',
+                        'services.arrived_latitude',
+                        'services.arrived_longitude',
+                        'services.scheduled_start as scheduled_time',
+                        'properties.id as property_id',
+                        'properties.property_name',
+                        'properties.address',
+                        'properties.latitude as property_latitude',
+                        'properties.longitude as property_longitude',
+                        'clients.name as client_name',
+                        'clients.phone as client_phone'
+                    )
+                    ->where(function ($q) use ($tech) {
+                        $q->where('services.assigned_to', $tech->user_id)
+                          ->orWhere('service_technician.technician_id', $tech->user_id);
+                    })
+                    ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                    ->get()
+                    ->map(function($srv) {
+                        $srv->composite_id = "servicio-{$srv->id}";
+                        $srv->tipo_registro = 'servicio';
+                        return $srv;
+                    });
+
+                $tech->assigned_jobs = $workOrders->concat($servicios);
+                return $tech;
+            });
+
+            return response()->json([
+                'success' => true,
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Error al obtener datos en vivo para el mapa: ' . $e->getMessage()], 500);
+        }
+    }
 }
 
