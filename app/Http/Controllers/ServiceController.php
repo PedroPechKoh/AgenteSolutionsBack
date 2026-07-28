@@ -1039,7 +1039,7 @@ class ServiceController extends Controller
 
             $lat = $request->latitude ?? null;
             $lng = $request->longitude ?? null;
-            $now = now();
+            $now = now()->setTimezone('America/Merida');
 
             if ($isWorkOrder) {
                 $item = WorkOrder::withoutGlobalScopes()->find($realId);
@@ -1057,7 +1057,7 @@ class ServiceController extends Controller
                 return response()->json(['error' => 'Trabajo no encontrado'], 404);
             }
 
-            $item->arrived_at = $now;
+            $item->arrived_at = $now->format('Y-m-d H:i:s');
             $item->arrived_latitude = $lat;
             $item->arrived_longitude = $lng;
             $item->arrival_status = 'EN_SITIO';
@@ -1080,7 +1080,8 @@ class ServiceController extends Controller
                 $property = \App\Models\Property::withoutGlobalScopes()->find($item->property_id);
                 $propName = $property ? ($property->property_name ?: $property->address) : 'la propiedad';
 
-                $admins = User::whereIn('role_id', [0, 1])->get();
+                // Usar withoutGlobalScopes para asegurar que los usuarios Root y Admin reciban la notificación independientemente del tenant_id
+                $admins = User::withoutGlobalScopes()->whereIn('role_id', [0, 1])->get();
                 $notif = new \App\Notifications\TechnicianArrivedNotification($user, $item, $propName);
 
                 foreach ($admins as $admin) {
@@ -1088,9 +1089,12 @@ class ServiceController extends Controller
                 }
 
                 if ($property && $property->client_id) {
-                    $client = User::withoutGlobalScopes()->find($property->client_id);
-                    if ($client) {
-                        $client->notify($notif);
+                    $clientRecord = DB::table('clients')->where('id', $property->client_id)->first();
+                    if ($clientRecord && $clientRecord->user_id) {
+                        $clientUser = User::withoutGlobalScopes()->find($clientRecord->user_id);
+                        if ($clientUser) {
+                            $clientUser->notify($notif);
+                        }
                     }
                 }
             } catch (\Exception $notifErr) {
@@ -1100,7 +1104,7 @@ class ServiceController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Llegada confirmada con éxito.',
-                'arrived_at' => $now->format('H:i:s'),
+                'arrived_at' => $now->format('Y-m-d H:i:s'),
                 'arrival_status' => 'EN_SITIO'
             ]);
 
@@ -1137,7 +1141,7 @@ class ServiceController extends Controller
 
             // 2. Incluir técnicos con trabajos asignados o arribo confirmado incluso si no han enviado GPS continuo
             $techsAssigned = DB::table('users')
-                ->whereIn('role_id', [2, 5])
+                ->whereIn('role_id', [2, 4, 5, 7])
                 ->select('id as user_id', 'first_name', 'last_name', 'email', 'phone_number', 'profile_picture')
                 ->get();
             
