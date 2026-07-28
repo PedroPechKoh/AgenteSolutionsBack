@@ -1121,7 +1121,7 @@ class ServiceController extends Controller
 
             // 2. Incluir técnicos con trabajos asignados o arribo confirmado incluso si no han enviado GPS continuo
             $techsAssigned = DB::table('users')
-                ->whereIn('role_id', [2])
+                ->whereIn('role_id', [2, 5])
                 ->select('id as user_id', 'first_name', 'last_name', 'email', 'phone_number', 'profile_picture')
                 ->get();
 
