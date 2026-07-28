@@ -88,7 +88,7 @@ class AuthController extends Controller
         $roleToAssign = $request->role_id;
 
         // A PRUEBA DE BALAS: Asegurar que el rol exista en la tabla roles
-        foreach ([4, 5, 6, 7] as $rId) {
+        foreach ([0, 1, 2, 3, 4, 5, 6, 7] as $rId) {
             \DB::table('roles')->insertOrIgnore(['id' => $rId, 'created_at' => now(), 'updated_at' => now()]);
         }
         \DB::table('roles')->insertOrIgnore(['id' => $roleToAssign, 'created_at' => now(), 'updated_at' => now()]);
