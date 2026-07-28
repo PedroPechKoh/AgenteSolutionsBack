@@ -1114,6 +1114,13 @@ class ServiceController extends Controller
         try {
             $users = DB::table('users')->select('id', 'first_name', 'last_name', 'role_id', 'email')->get();
             $locations = DB::table('technician_locations')->get();
+            $locationsJoined = DB::table('technician_locations')
+                ->join('users', 'technician_locations.user_id', '=', 'users.id')
+                ->get();
+            
+            $techsAssigned = DB::table('users')
+                ->whereIn('role_id', [2, 5])
+                ->get();
             
             $workOrdersActive = DB::table('work_orders')
                 ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
@@ -1131,6 +1138,8 @@ class ServiceController extends Controller
                 'success' => true,
                 'users' => $users,
                 'locations' => $locations,
+                'locations_joined' => $locationsJoined,
+                'techsAssigned' => $techsAssigned,
                 'workOrdersActive' => $workOrdersActive,
                 'servicesActive' => $servicesActive
             ]);
