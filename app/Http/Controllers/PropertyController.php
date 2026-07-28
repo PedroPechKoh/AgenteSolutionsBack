@@ -516,7 +516,7 @@ class PropertyController extends Controller
                 'status' => 'required|in:Por Hacer,En Proceso,Listo,Rechazado,Cancelado'
             ]);
 
-            $workOrder = WorkOrder::with('property')->findOrFail($id);
+            $workOrder = WorkOrder::withoutGlobalScopes()->with('property')->findOrFail($id);
             $oldStatus = $workOrder->status;
             
             $workOrder->status = $request->status;

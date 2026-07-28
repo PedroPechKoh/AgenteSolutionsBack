@@ -526,27 +526,27 @@ class ServiceController extends Controller
             $isWorkOrder = false;
 
             if ($parsed['isWorkOrder']) {
-                $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
                 if ($model) {
                     $isWorkOrder = true;
                 } else {
-                    $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
+                    $model = Service::withoutGlobalScopes()->with(['property.client', 'technician', 'technicians'])->find($realId);
                 }
             } elseif ($parsed['isService']) {
-                $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
+                $model = Service::withoutGlobalScopes()->with(['property.client', 'technician', 'technicians'])->find($realId);
                 if (!$model) {
-                    $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                    $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
                     if ($model) {
                         $isWorkOrder = true;
                     }
                 }
             } else {
                 // Fallback: Buscar en WorkOrder primero si es numérico, luego en Service
-                $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
                 if ($model) {
                     $isWorkOrder = true;
                 } else {
-                    $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
+                    $model = Service::withoutGlobalScopes()->with(['property.client', 'technician', 'technicians'])->find($realId);
                 }
             }
 
@@ -1020,11 +1020,14 @@ class ServiceController extends Controller
             $now = now();
 
             if ($isWorkOrder) {
-                $item = WorkOrder::find($realId);
-            } else {
-                $item = Service::find($realId);
+                $item = WorkOrder::withoutGlobalScopes()->find($realId);
                 if (!$item) {
-                    $item = WorkOrder::find($realId);
+                    $item = Service::withoutGlobalScopes()->find($realId);
+                }
+            } else {
+                $item = Service::withoutGlobalScopes()->find($realId);
+                if (!$item) {
+                    $item = WorkOrder::withoutGlobalScopes()->find($realId);
                 }
             }
 
