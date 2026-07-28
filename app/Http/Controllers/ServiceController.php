@@ -24,36 +24,38 @@ class ServiceController extends Controller
 {
     // ... (store, index, assignTechnician, assignWorkOrder methods remain unchanged)
 
+    private function parseCompositeId($raw)
+    {
+        $decoded = trim(urldecode((string)$raw));
+        $isWorkOrder = (bool) preg_match('/work[_\s-]*order/i', $decoded);
+        $isService = (bool) preg_match('/servicio/i', $decoded);
+
+        preg_match('/\d+/', $decoded, $matches);
+        $realId = isset($matches[0]) ? (int)$matches[0] : null;
+
+        return [
+            'raw' => $decoded,
+            'isWorkOrder' => $isWorkOrder,
+            'isService' => $isService,
+            'realId' => $realId,
+            'column' => $isWorkOrder ? 'work_order_id' : 'service_id'
+        ];
+    }
+
     public function getReports($id)
     {
         try {
-            $realId = $id;
-            $type = 'service_id';
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
 
-            if (str_contains($id, '-') || str_contains($id, '_')) {
-                if (str_starts_with($id, 'work_order_') || str_starts_with($id, 'work_order-') || str_starts_with($id, 'work-order-')) {
-                    $type = 'work_order_id';
-                    $realId = preg_replace('/^work[_-]order[_-]/i', '', $id);
-                } elseif (str_starts_with($id, 'servicio_') || str_starts_with($id, 'servicio-')) {
-                    $type = 'service_id';
-                    $realId = preg_replace('/^servicio[_-]/i', '', $id);
-                } elseif (str_contains($id, '-')) {
-                    $parts = explode('-', $id);
-                    $type = ($parts[0] === 'work_order') ? 'work_order_id' : 'service_id';
-                    $realId = $parts[1];
-                } elseif (str_contains($id, '_')) {
-                    $parts = explode('_', $id);
-                    $type = ($parts[0] === 'work_order') ? 'work_order_id' : 'service_id';
-                    $realId = $parts[1];
-                }
+            if (!$realId) {
+                return response()->json([], 200);
             }
 
-            if ($realId === 'null' || !$realId) {
-                return response()->json([], 200); // Retornar vacío si el ID es null
-            }
+            $column = $parsed['column'];
 
             $reports = WorkReport::with('technician:id,first_name,last_name,profile_picture')
-                ->where($type, $realId)
+                ->where($column, $realId)
                 ->orderBy('created_at', 'desc')
                 ->get();
             return response()->json($reports, 200);
@@ -70,26 +72,9 @@ class ServiceController extends Controller
                 'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:10240',
             ]);
 
-            $realId = $id;
-            $column = 'service_id';
-
-            if (str_contains($id, '-') || str_contains($id, '_')) {
-                if (str_starts_with($id, 'work_order_') || str_starts_with($id, 'work_order-') || str_starts_with($id, 'work-order-')) {
-                    $column = 'work_order_id';
-                    $realId = preg_replace('/^work[_-]order[_-]/i', '', $id);
-                } elseif (str_starts_with($id, 'servicio_') || str_starts_with($id, 'servicio-')) {
-                    $column = 'service_id';
-                    $realId = preg_replace('/^servicio[_-]/i', '', $id);
-                } elseif (str_contains($id, '-')) {
-                    $parts = explode('-', $id);
-                    $column = ($parts[0] === 'work_order') ? 'work_order_id' : 'service_id';
-                    $realId = $parts[1];
-                } elseif (str_contains($id, '_')) {
-                    $parts = explode('_', $id);
-                    $column = ($parts[0] === 'work_order') ? 'work_order_id' : 'service_id';
-                    $realId = $parts[1];
-                }
-            }
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
+            $column = $parsed['column'];
 
             $cloudinary = new Cloudinary('cloudinary://942191234587844:VmNYB6w4vj3DdLqI9SZSKVofOi0@dcj5rcpi8');
             $respuestaNube = $cloudinary->uploadApi()->upload($request->file('image')->getRealPath(), [
@@ -535,34 +520,15 @@ class ServiceController extends Controller
     public function show($identifier)
     {
         try {
-            $type = null;
-            $realId = $identifier;
-
-            if (str_contains($identifier, '-') || str_contains($identifier, '_')) {
-                if (str_starts_with($identifier, 'work_order_') || str_starts_with($identifier, 'work_order-') || str_starts_with($identifier, 'work-order-')) {
-                    $type = 'work_order';
-                    $realId = preg_replace('/^work[_-]order[_-]/i', '', $identifier);
-                } elseif (str_starts_with($identifier, 'servicio_') || str_starts_with($identifier, 'servicio-')) {
-                    $type = 'servicio';
-                    $realId = preg_replace('/^servicio[_-]/i', '', $identifier);
-                } elseif (str_contains($identifier, '-')) {
-                    $parts = explode('-', $identifier);
-                    $type = $parts[0];
-                    $realId = $parts[1];
-                } elseif (str_contains($identifier, '_')) {
-                    $parts = explode('_', $identifier);
-                    $type = $parts[0];
-                    $realId = $parts[1];
-                }
-            }
-
+            $parsed = $this->parseCompositeId($identifier);
+            $realId = $parsed['realId'];
             $model = null;
             $isWorkOrder = false;
 
-            if ($type === 'work_order') {
+            if ($parsed['isWorkOrder']) {
                 $model = WorkOrder::with(['property.client', 'tecnico', 'technicians'])->find($realId);
                 $isWorkOrder = true;
-            } elseif ($type === 'servicio') {
+            } elseif ($parsed['isService']) {
                 $model = Service::with(['property.client', 'technician', 'technicians'])->find($realId);
             } else {
                 // Fallback: Buscar en WorkOrder primero si es numérico, luego en Service
@@ -1035,26 +1001,9 @@ class ServiceController extends Controller
     {
         try {
             $user = auth('sanctum')->user();
-            $realId = $id;
-            $isWorkOrder = false;
-
-            if (str_contains($id, '-') || str_contains($id, '_')) {
-                if (str_starts_with($id, 'work_order_') || str_starts_with($id, 'work_order-') || str_starts_with($id, 'work-order-')) {
-                    $isWorkOrder = true;
-                    $realId = preg_replace('/^work[_-]order[_-]/i', '', $id);
-                } elseif (str_starts_with($id, 'servicio_') || str_starts_with($id, 'servicio-')) {
-                    $isWorkOrder = false;
-                    $realId = preg_replace('/^servicio[_-]/i', '', $id);
-                } elseif (str_contains($id, '-')) {
-                    $parts = explode('-', $id);
-                    $isWorkOrder = ($parts[0] === 'work_order');
-                    $realId = $parts[1];
-                } elseif (str_contains($id, '_')) {
-                    $parts = explode('_', $id);
-                    $isWorkOrder = ($parts[0] === 'work_order');
-                    $realId = $parts[1];
-                }
-            }
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
+            $isWorkOrder = $parsed['isWorkOrder'];
 
             $lat = $request->latitude ?? null;
             $lng = $request->longitude ?? null;
@@ -1064,6 +1013,9 @@ class ServiceController extends Controller
                 $item = WorkOrder::find($realId);
             } else {
                 $item = Service::find($realId);
+                if (!$item) {
+                    $item = WorkOrder::find($realId);
+                }
             }
 
             if (!$item) {
