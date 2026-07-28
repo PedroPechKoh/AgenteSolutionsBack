@@ -435,6 +435,10 @@ class ServiceController extends Controller
 
             $servicio->assigned_to = $request->tecnico_id;
             $servicio->scheduled_start = $request->scheduled_start;
+            $servicio->arrival_status = 'PENDIENTE';
+            $servicio->arrived_at = null;
+            $servicio->arrived_latitude = null;
+            $servicio->arrived_longitude = null;
             $servicio->status = 'Programado';
             $servicio->save();
 
@@ -485,6 +489,14 @@ class ServiceController extends Controller
             }
             if ($request->has('custom_checklist')) {
                 $servicio->custom_checklist = $request->custom_checklist; 
+            }
+            
+            // Reset arrival status if the job is rescheduled or reassigned
+            if ($request->has('scheduled_start') || $request->has('tecnicos_ids') || $request->has('tecnico_id')) {
+                $servicio->arrival_status = 'PENDIENTE';
+                $servicio->arrived_at = null;
+                $servicio->arrived_latitude = null;
+                $servicio->arrived_longitude = null;
             }
             
             $servicio->status = 'Programado';
@@ -1128,13 +1140,19 @@ class ServiceController extends Controller
                 ->whereIn('role_id', [2, 5])
                 ->select('id as user_id', 'first_name', 'last_name', 'email', 'phone_number', 'profile_picture')
                 ->get();
+            
+            \Log::info("Techs assigned count: " . $techsAssigned->count());
 
             foreach ($techsAssigned as $t) {
                 if (!$locations->has($t->user_id)) {
                     // Si no tiene GPS activo, buscar un trabajo activo asignado para usar las coordenadas de la propiedad
                     $activeJob = DB::table('work_orders')
                         ->join('properties', 'work_orders.property_id', '=', 'properties.id')
-                        ->where('work_orders.tecnico_id', $t->user_id)
+                        ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
+                        ->where(function ($q) use ($t) {
+                            $q->where('work_orders.tecnico_id', $t->user_id)
+                              ->orWhere('work_order_technician.technician_id', $t->user_id);
+                        })
                         ->whereNotIn('work_orders.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
                         ->select('work_orders.arrived_latitude', 'work_orders.arrived_longitude', 'work_orders.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
                         ->latest('work_orders.updated_at')
@@ -1143,12 +1161,18 @@ class ServiceController extends Controller
                     if (!$activeJob) {
                         $activeJob = DB::table('services')
                             ->join('properties', 'services.property_id', '=', 'properties.id')
-                            ->where('services.assigned_to', $t->user_id)
+                            ->leftJoin('service_technician', 'services.id', '=', 'service_technician.service_id')
+                            ->where(function ($q) use ($t) {
+                                $q->where('services.assigned_to', $t->user_id)
+                                  ->orWhere('service_technician.technician_id', $t->user_id);
+                            })
                             ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
                             ->select('services.arrived_latitude', 'services.arrived_longitude', 'services.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
                             ->latest('services.updated_at')
                             ->first();
                     }
+                    
+                    \Log::info("Tech ID {$t->user_id} activeJob: " . ($activeJob ? "FOUND" : "NOT FOUND"));
 
                     if ($activeJob) {
                         // Si ya llegó, usar arrived_latitude, de lo contrario intentar usar la latitud de la propiedad

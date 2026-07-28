@@ -649,6 +649,14 @@ class PropertyController extends Controller
                 $workOrder->scheduled_at = $request->scheduled_at;
             }
             
+            // Reset arrival status if the job is rescheduled or reassigned
+            if ($request->has('scheduled_at') || $request->has('tecnicos_ids') || $request->has('tecnico_id')) {
+                $workOrder->arrival_status = 'PENDIENTE';
+                $workOrder->arrived_at = null;
+                $workOrder->arrived_latitude = null;
+                $workOrder->arrived_longitude = null;
+            }
+            
             $workOrder->save();
 
             // 1. Notificación a los Técnicos
@@ -743,6 +751,14 @@ class PropertyController extends Controller
 
                 if ($request->has('scheduled_at')) {
                     $workOrder->scheduled_at = $request->scheduled_at;
+                }
+
+                // Reset arrival status if the job is rescheduled or reassigned
+                if ($request->has('scheduled_at') || $request->has('tecnicos_ids') || $request->has('tecnico_id')) {
+                    $workOrder->arrival_status = 'PENDIENTE';
+                    $workOrder->arrived_at = null;
+                    $workOrder->arrived_latitude = null;
+                    $workOrder->arrived_longitude = null;
                 }
 
                 $workOrder->save();
