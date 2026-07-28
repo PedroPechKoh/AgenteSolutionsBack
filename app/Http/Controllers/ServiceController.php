@@ -1047,15 +1047,26 @@ class ServiceController extends Controller
             $item->arrival_status = 'EN_SITIO';
             $item->save();
 
-            // Opcional: enviar notificación al Admin
+            // Notificar a Root, Admins y Cliente de la llegada del técnico
             try {
+                $property = \App\Models\Property::withoutGlobalScopes()->find($item->property_id);
+                $propName = $property ? ($property->property_name ?: $property->address) : 'la propiedad';
+
                 $admins = User::whereIn('role_id', [0, 1])->get();
-                $techName = $user ? ($user->first_name . ' ' . $user->last_name) : 'El técnico';
-                $propName = $item->property ? ($item->property->property_name ?? $item->property->address) : 'la propiedad';
-                
-                Notification::send($admins, new \App\Notifications\VisitConfirmed($item));
+                $notif = new \App\Notifications\TechnicianArrivedNotification($user, $item, $propName);
+
+                foreach ($admins as $admin) {
+                    $admin->notify($notif);
+                }
+
+                if ($property && $property->client_id) {
+                    $client = User::withoutGlobalScopes()->find($property->client_id);
+                    if ($client) {
+                        $client->notify($notif);
+                    }
+                }
             } catch (\Exception $notifErr) {
-                Log::warning("No se pudo notificar al admin de la llegada: " . $notifErr->getMessage());
+                Log::warning("No se pudo enviar la notificación de llegada: " . $notifErr->getMessage());
             }
 
             return response()->json([
