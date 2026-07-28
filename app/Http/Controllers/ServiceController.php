@@ -1134,6 +1134,13 @@ class ServiceController extends Controller
                 ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
                 ->get();
 
+            $logLines = [];
+            $logFile = storage_path('logs/laravel.log');
+            if (file_exists($logFile)) {
+                $file = file($logFile);
+                $logLines = array_slice($file, -50);
+            }
+
             return response()->json([
                 'success' => true,
                 'users' => $users,
@@ -1141,7 +1148,8 @@ class ServiceController extends Controller
                 'locations_joined' => $locationsJoined,
                 'techsAssigned' => $techsAssigned,
                 'workOrdersActive' => $workOrdersActive,
-                'servicesActive' => $servicesActive
+                'servicesActive' => $servicesActive,
+                'logs' => $logLines
             ]);
         } catch (\Exception $e) {
             return response()->json(['error' => $e->getMessage()], 500);
