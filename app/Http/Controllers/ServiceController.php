@@ -758,6 +758,8 @@ class ServiceController extends Controller
                     'services.scheduled_end',
                     'services.real_start',
                     'services.real_end',
+                    'services.arrival_status',
+                    'services.arrived_at',
                     'services.property_id',
                     'services.created_at',
                     'services.updated_at',
@@ -786,6 +788,8 @@ class ServiceController extends Controller
                     'work_orders.status',
                     'work_orders.tecnico_id',
                     'work_orders.scheduled_at',
+                    'work_orders.arrival_status',
+                    'work_orders.arrived_at',
                     'work_orders.property_id',
                     'work_orders.created_at',
                     'work_orders.updated_at',
@@ -1127,16 +1131,40 @@ class ServiceController extends Controller
 
             foreach ($techsAssigned as $t) {
                 if (!$locations->has($t->user_id)) {
-                    $woArrived = DB::table('work_orders')
-                        ->where('tecnico_id', $t->user_id)
-                        ->whereNotNull('arrived_latitude')
-                        ->latest('updated_at')
+                    // Si no tiene GPS activo, buscar un trabajo activo asignado para usar las coordenadas de la propiedad
+                    $activeJob = DB::table('work_orders')
+                        ->join('properties', 'work_orders.property_id', '=', 'properties.id')
+                        ->where('work_orders.tecnico_id', $t->user_id)
+                        ->whereNotIn('work_orders.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                        ->select('work_orders.arrived_latitude', 'work_orders.arrived_longitude', 'work_orders.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
+                        ->latest('work_orders.updated_at')
                         ->first();
 
-                    if ($woArrived) {
-                        $t->latitude = $woArrived->arrived_latitude;
-                        $t->longitude = $woArrived->arrived_longitude;
-                        $t->last_gps_update = $woArrived->arrived_at;
+                    if (!$activeJob) {
+                        $activeJob = DB::table('services')
+                            ->join('properties', 'services.property_id', '=', 'properties.id')
+                            ->where('services.assigned_to', $t->user_id)
+                            ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                            ->select('services.arrived_latitude', 'services.arrived_longitude', 'services.arrived_at', 'properties.latitude as prop_lat', 'properties.longitude as prop_lng', 'properties.coordinates')
+                            ->latest('services.updated_at')
+                            ->first();
+                    }
+
+                    if ($activeJob) {
+                        // Si ya llegó, usar arrived_latitude, de lo contrario intentar usar la latitud de la propiedad
+                        $t->latitude = $activeJob->arrived_latitude ?? $activeJob->prop_lat ?? null;
+                        $t->longitude = $activeJob->arrived_longitude ?? $activeJob->prop_lng ?? null;
+
+                        // Si properties.coordinates tiene "lat,lng" pero prop_lat está nulo, extraemos de ahí
+                        if (!$t->latitude && $activeJob->coordinates) {
+                            $parts = explode(',', $activeJob->coordinates);
+                            if (count($parts) >= 2) {
+                                $t->latitude = (float) trim($parts[0]);
+                                $t->longitude = (float) trim($parts[1]);
+                            }
+                        }
+
+                        $t->last_gps_update = $activeJob->arrived_at ?? null;
                         $t->location_id = null;
                         $locations->put($t->user_id, $t);
                     }
