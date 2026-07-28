@@ -1109,6 +1109,36 @@ class ServiceController extends Controller
         }
     }
 
+    public function debugGps()
+    {
+        try {
+            $users = DB::table('users')->select('id', 'first_name', 'last_name', 'role_id', 'email')->get();
+            $locations = DB::table('technician_locations')->get();
+            
+            $workOrdersActive = DB::table('work_orders')
+                ->leftJoin('work_order_technician', 'work_orders.id', '=', 'work_order_technician.work_order_id')
+                ->select('work_orders.id', 'work_orders.status', 'work_orders.tecnico_id', 'work_order_technician.technician_id', 'work_orders.property_id')
+                ->whereNotIn('work_orders.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                ->get();
+
+            $servicesActive = DB::table('services')
+                ->leftJoin('service_technician', 'services.id', '=', 'service_technician.service_id')
+                ->select('services.id', 'services.status', 'services.assigned_to', 'service_technician.technician_id', 'services.property_id')
+                ->whereNotIn('services.status', ['Listo', 'Finalizado', 'Rechazado', 'Cancelado'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'users' => $users,
+                'locations' => $locations,
+                'workOrdersActive' => $workOrdersActive,
+                'servicesActive' => $servicesActive
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     public function getRootTechniciansLiveMap()
     {
         try {
