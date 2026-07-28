@@ -554,7 +554,9 @@ class ServiceController extends Controller
                 return response()->json(['error' => 'Registro no encontrado'], 404);
             }
 
-            $property = $model->property;
+            $property = \App\Models\Property::withoutGlobalScopes()
+                ->with(['client' => function($q) { $q->withoutGlobalScopes(); }])
+                ->find($model->property_id);
             $client = $property ? $property->client : null;
 
             $secciones = $this->getFormattedSecciones($model->property_id);
@@ -614,6 +616,8 @@ class ServiceController extends Controller
                     'technicians' => $team,
                     'fecha_programada' => $model->scheduled_at ? $model->scheduled_at->format('Y-m-d H:i:s') : null,
                     'descripcion' => $model->description,
+                    'equipment' => $model->equipment,
+                    'equipo_afectado' => $model->equipment,
                     'custom_checklist' => $model->custom_checklist,
                     'property_id' => $model->property_id,
                     'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2])),
@@ -642,6 +646,8 @@ class ServiceController extends Controller
                     'technicians' => $team,
                     'fecha_programada' => $model->scheduled_start,
                     'descripcion' => $model->description,
+                    'equipment' => $model->equipment ?? null,
+                    'equipo_afectado' => $model->equipment ?? null,
                     'property_id' => $model->property_id,
                     'evidencias' => [],
                     'secciones' => $secciones,
