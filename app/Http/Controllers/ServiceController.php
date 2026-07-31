@@ -1342,14 +1342,20 @@ class ServiceController extends Controller
             
             $model->status = 'Segunda Visita Solicitada';
             $model->estado = 'Segunda Visita Solicitada';
-            try { $model->second_visit_proposed_date = $request->fecha_propuesta; } catch (\Exception $e) {}
-            try { $model->second_visit_reason = $request->motivo; } catch (\Exception $e) {}
             
             // Si la descripción fue contaminada con anteriores notas repetidas de prueba, la limpiamos primero
-            if ($model->description) {
-                $cleanedDesc = preg_replace('/\n?\[(SOLICITUD 2DA VISITA|RESPUESTA CLIENTE 2DA VISITA|PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN)\].*/s', '', $model->description);
-                $model->description = trim($cleanedDesc);
+            $cleanedDesc = $model->description ?? '';
+            if ($cleanedDesc) {
+                $cleanedDesc = preg_replace('/\n?\[(SOLICITUD 2DA VISITA|RESPUESTA CLIENTE 2DA VISITA|PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN)\].*/s', '', $cleanedDesc);
+                $cleanedDesc = trim($cleanedDesc);
             }
+            // Adjuntamos la nota fresca para que el frontend pueda extraer la fecha y motivo (ya que no existen columnas en DB)
+            $model->description = $cleanedDesc . $nota;
+            
+            // Prevenir error 1054 removiendo propiedades dinámicas si existen
+            unset($model->second_visit_proposed_date);
+            unset($model->second_visit_reason);
+
             $model->save();
 
             // Cargar cliente del inmueble si existe
