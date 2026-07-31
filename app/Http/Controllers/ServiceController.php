@@ -1325,9 +1325,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId) ?? Service::find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->find($realId) ?? Service::withoutGlobalScopes()->find($realId);
             } else {
-                $model = Service::find($realId) ?? WorkOrder::find($realId);
+                $model = Service::withoutGlobalScopes()->find($realId) ?? WorkOrder::withoutGlobalScopes()->find($realId);
             }
 
             if (!$model) {
@@ -1399,9 +1399,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId) ?? Service::find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->find($realId) ?? Service::withoutGlobalScopes()->find($realId);
             } else {
-                $model = Service::find($realId) ?? WorkOrder::find($realId);
+                $model = Service::withoutGlobalScopes()->find($realId) ?? WorkOrder::withoutGlobalScopes()->find($realId);
             }
 
             if (!$model) {
@@ -1461,9 +1461,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId) ?? Service::find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->find($realId) ?? Service::withoutGlobalScopes()->find($realId);
             } else {
-                $model = Service::find($realId) ?? WorkOrder::find($realId);
+                $model = Service::withoutGlobalScopes()->find($realId) ?? WorkOrder::withoutGlobalScopes()->find($realId);
             }
 
             if (!$model) {
