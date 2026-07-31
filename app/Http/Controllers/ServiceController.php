@@ -1341,12 +1341,9 @@ class ServiceController extends Controller
             $nota = "\n[SOLICITUD 2DA VISITA]: Técnico {$techName} propone la fecha: {$request->fecha_propuesta}. Motivo: " . ($request->motivo ?? 'Sin motivo especificado.');
             
             $model->status = 'Segunda Visita Solicitada';
-            if (isset($model->second_visit_proposed_date)) {
-                $model->second_visit_proposed_date = $request->fecha_propuesta;
-            }
-            if (isset($model->second_visit_reason)) {
-                $model->second_visit_reason = $request->motivo;
-            }
+            $model->estado = 'Segunda Visita Solicitada';
+            try { $model->second_visit_proposed_date = $request->fecha_propuesta; } catch (\Exception $e) {}
+            try { $model->second_visit_reason = $request->motivo; } catch (\Exception $e) {}
             $model->description = ($model->description ?? '') . $nota;
             $model->save();
 
@@ -1355,19 +1352,38 @@ class ServiceController extends Controller
             if (method_exists($model, 'property') && $model->property) {
                 $property = $model->property;
             } else if (isset($model->property_id)) {
-                $property = \App\Models\Property::find($model->property_id);
+                $property = \App\Models\Property::withoutGlobalScopes()->find($model->property_id);
             }
 
             // 1. Notificar a Admins / Root
             $admins = User::whereIn('role_id', [0, 1])->get();
-            Notification::send($admins, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
+            if ($admins->count() > 0) {
+                Notification::send($admins, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
+            }
 
             // 2. Notificar al Cliente si tiene usuario
-            if ($property && $property->client_id) {
-                $clientUser = User::where('id', $property->client_id)->first();
-                if ($clientUser) {
-                    Notification::send($clientUser, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
+            $clientUsers = collect();
+            if ($property) {
+                if (!empty($property->client_id)) {
+                    $u = User::find($property->client_id);
+                    if ($u) $clientUsers->push($u);
                 }
+                if (!empty($property->user_id)) {
+                    $u = User::find($property->user_id);
+                    if ($u) $clientUsers->push($u);
+                }
+            }
+            if (!empty($model->client_id)) {
+                $u = User::find($model->client_id);
+                if ($u) $clientUsers->push($u);
+            }
+            if (!empty($model->user_id)) {
+                $u = User::find($model->user_id);
+                if ($u) $clientUsers->push($u);
+            }
+            $clientUsers = $clientUsers->unique('id');
+            if ($clientUsers->count() > 0) {
+                Notification::send($clientUsers, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
             }
 
             return response()->json([
@@ -1411,6 +1427,7 @@ class ServiceController extends Controller
             $nota = "\n[RESPUESTA CLIENTE 2DA VISITA]: El cliente " . ($request->accion === 'aceptar' ? 'ACEPTÓ' : 'REPROGRAMÓ') . " la fecha a: " . $request->fecha_confirmada;
             
             $model->status = 'Segunda Visita Programada';
+            $model->estado = 'Segunda Visita Programada';
             if (isset($model->scheduled_at)) {
                 $model->scheduled_at = $request->fecha_confirmada;
             }
@@ -1477,6 +1494,7 @@ class ServiceController extends Controller
             $nota = "\n[PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN]: Fecha: " . $request->fecha_programada . ($request->observaciones ? ". Observaciones: " . $request->observaciones : '');
 
             $model->status = 'Segunda Visita Programada';
+            $model->estado = 'Segunda Visita Programada';
             if (isset($model->scheduled_at)) {
                 $model->scheduled_at = $request->fecha_programada;
             }
