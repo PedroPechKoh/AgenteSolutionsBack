@@ -1344,7 +1344,12 @@ class ServiceController extends Controller
             $model->estado = 'Segunda Visita Solicitada';
             try { $model->second_visit_proposed_date = $request->fecha_propuesta; } catch (\Exception $e) {}
             try { $model->second_visit_reason = $request->motivo; } catch (\Exception $e) {}
-            $model->description = ($model->description ?? '') . $nota;
+            
+            // Si la descripción fue contaminada con anteriores notas repetidas de prueba, la limpiamos primero
+            if ($model->description) {
+                $cleanedDesc = preg_replace('/\n?\[(SOLICITUD 2DA VISITA|RESPUESTA CLIENTE 2DA VISITA|PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN)\].*/s', '', $model->description);
+                $model->description = trim($cleanedDesc);
+            }
             $model->save();
 
             // Cargar cliente del inmueble si existe
@@ -1361,26 +1366,33 @@ class ServiceController extends Controller
                 Notification::send($admins, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
             }
 
-            // 2. Notificar al Cliente si tiene usuario
+            // 2. Notificar al Cliente (buscando por Client email o User ID)
             $clientUsers = collect();
-            if ($property) {
-                if (!empty($property->client_id)) {
-                    $u = User::find($property->client_id);
-                    if ($u) $clientUsers->push($u);
+            if ($property && !empty($property->client_id)) {
+                $clientObj = \App\Models\Client::withoutGlobalScopes()->find($property->client_id);
+                if ($clientObj && !empty($clientObj->email)) {
+                    $uByEmail = User::where('email', $clientObj->email)->first();
+                    if ($uByEmail) $clientUsers->push($uByEmail);
                 }
-                if (!empty($property->user_id)) {
-                    $u = User::find($property->user_id);
-                    if ($u) $clientUsers->push($u);
-                }
+                $uById = User::find($property->client_id);
+                if ($uById) $clientUsers->push($uById);
             }
             if (!empty($model->client_id)) {
-                $u = User::find($model->client_id);
-                if ($u) $clientUsers->push($u);
+                $clientObj2 = \App\Models\Client::withoutGlobalScopes()->find($model->client_id);
+                if ($clientObj2 && !empty($clientObj2->email)) {
+                    $uByEmail2 = User::where('email', $clientObj2->email)->first();
+                    if ($uByEmail2) $clientUsers->push($uByEmail2);
+                }
+                $uById2 = User::find($model->client_id);
+                if ($uById2) $clientUsers->push($uById2);
             }
-            if (!empty($model->user_id)) {
-                $u = User::find($model->user_id);
-                if ($u) $clientUsers->push($u);
+
+            // También notificar a todos los usuarios con rol de cliente (role_id = 3)
+            $allClients = User::where('role_id', 3)->get();
+            foreach ($allClients as $cUser) {
+                $clientUsers->push($cUser);
             }
+
             $clientUsers = $clientUsers->unique('id');
             if ($clientUsers->count() > 0) {
                 Notification::send($clientUsers, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
