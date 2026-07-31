@@ -1325,9 +1325,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId);
+                $model = WorkOrder::find($realId) ?? Service::find($realId);
             } else {
-                $model = Service::find($realId);
+                $model = Service::find($realId) ?? WorkOrder::find($realId);
             }
 
             if (!$model) {
@@ -1399,9 +1399,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId);
+                $model = WorkOrder::find($realId) ?? Service::find($realId);
             } else {
-                $model = Service::find($realId);
+                $model = Service::find($realId) ?? WorkOrder::find($realId);
             }
 
             if (!$model) {
@@ -1461,9 +1461,9 @@ class ServiceController extends Controller
 
             $model = null;
             if ($isWorkOrder) {
-                $model = WorkOrder::find($realId);
+                $model = WorkOrder::find($realId) ?? Service::find($realId);
             } else {
-                $model = Service::find($realId);
+                $model = Service::find($realId) ?? WorkOrder::find($realId);
             }
 
             if (!$model) {
