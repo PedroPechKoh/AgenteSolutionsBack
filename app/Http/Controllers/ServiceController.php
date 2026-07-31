@@ -1349,12 +1349,12 @@ class ServiceController extends Controller
                 $cleanedDesc = preg_replace('/\n?\[(SOLICITUD 2DA VISITA|RESPUESTA CLIENTE 2DA VISITA|PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN)\].*/s', '', $cleanedDesc);
                 $cleanedDesc = trim($cleanedDesc);
             }
-            // Adjuntamos la nota fresca para que el frontend pueda extraer la fecha y motivo (ya que no existen columnas en DB)
+            // Adjuntamos la nota fresca para que el frontend pueda extraer la fecha y motivo
             $model->description = $cleanedDesc . $nota;
             
-            // Prevenir error 1054 removiendo propiedades dinámicas si existen
-            unset($model->second_visit_proposed_date);
-            unset($model->second_visit_reason);
+            // Las propiedades ahora existen en la base de datos gracias a la migración
+            $model->second_visit_proposed_date = $request->fecha_propuesta;
+            $model->second_visit_reason = $request->motivo;
 
             $model->save();
 
