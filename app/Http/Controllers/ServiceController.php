@@ -7,6 +7,9 @@ use App\Models\Service;
 use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Notifications\RescheduleRequested;
+use App\Notifications\SecondVisitRequested;
+use App\Notifications\SecondVisitAgreed;
+use App\Notifications\SecondVisitAdminScheduled;
 use Illuminate\Support\Facades\Notification;
 use App\Notifications\VisitRescheduled;
 use App\Notifications\VisitConfirmed;
@@ -1302,6 +1305,218 @@ class ServiceController extends Controller
         } catch (\Exception $e) {
             Log::error("Error en getRootTechniciansLiveMap: " . $e->getMessage());
             return response()->json(['error' => 'Error al obtener mapa de técnicos: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Técnico solicita 2da visita para un trabajo no concluido.
+     */
+    public function solicitarSegundaVisita(Request $request, $id)
+    {
+        try {
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
+            $type = $parsed['type'];
+
+            $request->validate([
+                'fecha_propuesta' => 'required|string',
+                'motivo' => 'nullable|string'
+            ]);
+
+            $model = null;
+            if ($type === 'work_order') {
+                $model = WorkOrder::find($realId);
+            } else {
+                $model = Service::find($realId);
+            }
+
+            if (!$model) {
+                return response()->json(['success' => false, 'message' => 'Trabajo no encontrado'], 404);
+            }
+
+            $user = $request->user();
+            $techName = $user ? trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? '')) : 'Técnico';
+            if (empty($techName)) $techName = $user->name ?? 'Técnico';
+
+            $nota = "\n[SOLICITUD 2DA VISITA]: Técnico {$techName} propone la fecha: {$request->fecha_propuesta}. Motivo: " . ($request->motivo ?? 'Sin motivo especificado.');
+            
+            $model->status = 'Segunda Visita Solicitada';
+            if (isset($model->second_visit_proposed_date)) {
+                $model->second_visit_proposed_date = $request->fecha_propuesta;
+            }
+            if (isset($model->second_visit_reason)) {
+                $model->second_visit_reason = $request->motivo;
+            }
+            $model->description = ($model->description ?? '') . $nota;
+            $model->save();
+
+            // Cargar cliente del inmueble si existe
+            $property = null;
+            if (method_exists($model, 'property') && $model->property) {
+                $property = $model->property;
+            } else if (isset($model->property_id)) {
+                $property = \App\Models\Property::find($model->property_id);
+            }
+
+            // 1. Notificar a Admins / Root
+            $admins = User::whereIn('role_id', [0, 1])->get();
+            Notification::send($admins, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
+
+            // 2. Notificar al Cliente si tiene usuario
+            if ($property && $property->client_id) {
+                $clientUser = User::where('id', $property->client_id)->first();
+                if ($clientUser) {
+                    Notification::send($clientUser, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Solicitud de 2da visita registrada correctamente.',
+                'data' => $model
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error("Error en solicitarSegundaVisita: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al solicitar 2da visita: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Cliente responde a la solicitud de 2da visita (Aceptar o Reprogramar).
+     */
+    public function responderSegundaVisita(Request $request, $id)
+    {
+        try {
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
+            $type = $parsed['type'];
+
+            $request->validate([
+                'accion' => 'required|in:aceptar,reprogramar',
+                'fecha_confirmada' => 'required|string'
+            ]);
+
+            $model = null;
+            if ($type === 'work_order') {
+                $model = WorkOrder::find($realId);
+            } else {
+                $model = Service::find($realId);
+            }
+
+            if (!$model) {
+                return response()->json(['success' => false, 'message' => 'Trabajo no encontrado'], 404);
+            }
+
+            $nota = "\n[RESPUESTA CLIENTE 2DA VISITA]: El cliente " . ($request->accion === 'aceptar' ? 'ACEPTÓ' : 'REPROGRAMÓ') . " la fecha a: " . $request->fecha_confirmada;
+            
+            $model->status = 'Segunda Visita Programada';
+            if (isset($model->scheduled_at)) {
+                $model->scheduled_at = $request->fecha_confirmada;
+            }
+            if (isset($model->fecha_programada)) {
+                $model->fecha_programada = $request->fecha_confirmada;
+            }
+            $model->description = ($model->description ?? '') . $nota;
+            $model->save();
+
+            // Notificar a Root y al Técnico Asignado
+            $admins = User::whereIn('role_id', [0, 1])->get();
+            Notification::send($admins, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
+
+            if (isset($model->assigned_to) && $model->assigned_to) {
+                $techUser = User::find($model->assigned_to);
+                if ($techUser) {
+                    Notification::send($techUser, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Respuesta registrada. Segunda visita programada con éxito.',
+                'data' => $model
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error("Error en responderSegundaVisita: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al procesar respuesta: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Root / Admin programa directamente una 2da visita (a solicitud del cliente).
+     */
+    public function adminProgramarSegundaVisita(Request $request, $id)
+    {
+        try {
+            $parsed = $this->parseCompositeId($id);
+            $realId = $parsed['realId'];
+            $type = $parsed['type'];
+
+            $request->validate([
+                'fecha_programada' => 'required|string',
+                'tecnico_id' => 'nullable|integer',
+                'observaciones' => 'nullable|string'
+            ]);
+
+            $model = null;
+            if ($type === 'work_order') {
+                $model = WorkOrder::find($realId);
+            } else {
+                $model = Service::find($realId);
+            }
+
+            if (!$model) {
+                return response()->json(['success' => false, 'message' => 'Trabajo no encontrado'], 404);
+            }
+
+            if (!empty($request->tecnico_id)) {
+                $model->assigned_to = $request->tecnico_id;
+            }
+
+            $nota = "\n[PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN]: Fecha: " . $request->fecha_programada . ($request->observaciones ? ". Observaciones: " . $request->observaciones : '');
+
+            $model->status = 'Segunda Visita Programada';
+            if (isset($model->scheduled_at)) {
+                $model->scheduled_at = $request->fecha_programada;
+            }
+            if (isset($model->fecha_programada)) {
+                $model->fecha_programada = $request->fecha_programada;
+            }
+            $model->description = ($model->description ?? '') . $nota;
+            $model->save();
+
+            // Notificar a Cliente y al Técnico
+            $property = null;
+            if (method_exists($model, 'property') && $model->property) {
+                $property = $model->property;
+            } else if (isset($model->property_id)) {
+                $property = \App\Models\Property::find($model->property_id);
+            }
+
+            if ($property && $property->client_id) {
+                $clientUser = User::where('id', $property->client_id)->first();
+                if ($clientUser) {
+                    Notification::send($clientUser, new \App\Notifications\SecondVisitAdminScheduled($model, $request->fecha_programada, $request->observaciones));
+                }
+            }
+
+            if (!empty($model->assigned_to)) {
+                $techUser = User::find($model->assigned_to);
+                if ($techUser) {
+                    Notification::send($techUser, new \App\Notifications\SecondVisitAdminScheduled($model, $request->fecha_programada, $request->observaciones));
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Segunda visita programada directamente por el Administrador.',
+                'data' => $model
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error("Error en adminProgramarSegundaVisita: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Error al programar 2da visita por Admin: ' . $e->getMessage()], 500);
         }
     }
 }
