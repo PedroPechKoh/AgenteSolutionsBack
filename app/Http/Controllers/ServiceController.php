@@ -1316,7 +1316,7 @@ class ServiceController extends Controller
         try {
             $parsed = $this->parseCompositeId($id);
             $realId = $parsed['realId'];
-            $type = $parsed['type'];
+            $isWorkOrder = $parsed['isWorkOrder'];
 
             $request->validate([
                 'fecha_propuesta' => 'required|string',
@@ -1324,7 +1324,7 @@ class ServiceController extends Controller
             ]);
 
             $model = null;
-            if ($type === 'work_order') {
+            if ($isWorkOrder) {
                 $model = WorkOrder::find($realId);
             } else {
                 $model = Service::find($realId);
@@ -1390,7 +1390,7 @@ class ServiceController extends Controller
         try {
             $parsed = $this->parseCompositeId($id);
             $realId = $parsed['realId'];
-            $type = $parsed['type'];
+            $isWorkOrder = $parsed['isWorkOrder'];
 
             $request->validate([
                 'accion' => 'required|in:aceptar,reprogramar',
@@ -1398,7 +1398,7 @@ class ServiceController extends Controller
             ]);
 
             $model = null;
-            if ($type === 'work_order') {
+            if ($isWorkOrder) {
                 $model = WorkOrder::find($realId);
             } else {
                 $model = Service::find($realId);
@@ -1451,7 +1451,7 @@ class ServiceController extends Controller
         try {
             $parsed = $this->parseCompositeId($id);
             $realId = $parsed['realId'];
-            $type = $parsed['type'];
+            $isWorkOrder = $parsed['isWorkOrder'];
 
             $request->validate([
                 'fecha_programada' => 'required|string',
@@ -1460,7 +1460,7 @@ class ServiceController extends Controller
             ]);
 
             $model = null;
-            if ($type === 'work_order') {
+            if ($isWorkOrder) {
                 $model = WorkOrder::find($realId);
             } else {
                 $model = Service::find($realId);
