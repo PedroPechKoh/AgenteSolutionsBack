@@ -1341,7 +1341,6 @@ class ServiceController extends Controller
             $nota = "\n[SOLICITUD 2DA VISITA]: Técnico {$techName} propone la fecha: {$request->fecha_propuesta}. Motivo: " . ($request->motivo ?? 'Sin motivo especificado.');
             
             $model->status = 'Segunda Visita Solicitada';
-            $model->estado = 'Segunda Visita Solicitada';
             
             // Si la descripción fue contaminada con anteriores notas repetidas de prueba, la limpiamos primero
             $cleanedDesc = $model->description ?? '';
@@ -1445,13 +1444,11 @@ class ServiceController extends Controller
             $nota = "\n[RESPUESTA CLIENTE 2DA VISITA]: El cliente " . ($request->accion === 'aceptar' ? 'ACEPTÓ' : 'REPROGRAMÓ') . " la fecha a: " . $request->fecha_confirmada;
             
             $model->status = 'Segunda Visita Programada';
-            $model->estado = 'Segunda Visita Programada';
-            if (isset($model->scheduled_at)) {
-                $model->scheduled_at = $request->fecha_confirmada;
-            }
-            if (isset($model->fecha_programada)) {
-                $model->fecha_programada = $request->fecha_confirmada;
-            }
+            try {
+                if (isset($model->scheduled_at)) {
+                    $model->scheduled_at = $request->fecha_confirmada;
+                }
+            } catch (\Exception $e) {}
             $model->description = ($model->description ?? '') . $nota;
             $model->save();
 
@@ -1512,13 +1509,11 @@ class ServiceController extends Controller
             $nota = "\n[PROGRAMACIÓN DIRECTA 2DA VISITA POR ADMIN]: Fecha: " . $request->fecha_programada . ($request->observaciones ? ". Observaciones: " . $request->observaciones : '');
 
             $model->status = 'Segunda Visita Programada';
-            $model->estado = 'Segunda Visita Programada';
-            if (isset($model->scheduled_at)) {
-                $model->scheduled_at = $request->fecha_programada;
-            }
-            if (isset($model->fecha_programada)) {
-                $model->fecha_programada = $request->fecha_programada;
-            }
+            try {
+                if (isset($model->scheduled_at)) {
+                    $model->scheduled_at = $request->fecha_programada;
+                }
+            } catch (\Exception $e) {}
             $model->description = ($model->description ?? '') . $nota;
             $model->save();
 
