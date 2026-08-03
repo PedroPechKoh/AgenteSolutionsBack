@@ -34,11 +34,12 @@ class SecondVisitRequested extends Notification
 
         return [
             'service_id' => $idStr,
+            'work_order_id' => $idStr,
             'property_id' => $propId,
             'alert_type' => 'second_visit_requested',
             'title' => 'Solicitud de Segunda Visita',
             'message' => "El técnico {$this->solicitanteNombre} solicitó una 2da visita para el trabajo #{$idStr} propuesta para el: {$this->fechaPropuesta}." . ($this->motivo ? " Motivo: {$this->motivo}" : ''),
-            'url' => $propId ? "/propiedad/{$propId}/tablero" : "/trabajos"
+            'url' => $propId ? "/propiedad/{$propId}/tablero" : "/tablero-servicios"
         ];
     }
 }

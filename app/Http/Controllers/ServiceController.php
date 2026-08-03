@@ -1366,34 +1366,34 @@ class ServiceController extends Controller
             }
 
             // 1. Notificar a Admins / Root
-            $admins = User::whereIn('role_id', [0, 1])->get();
+            $admins = User::withoutGlobalScopes()->whereIn('role_id', [0, 1])->get();
             if ($admins->count() > 0) {
                 Notification::send($admins, new \App\Notifications\SecondVisitRequested($model, $request->fecha_propuesta, $request->motivo, $techName));
             }
 
-            // 2. Notificar al Cliente (buscando por Client email o User ID)
+            // 2. Notificar al Cliente (buscando por Client email o User ID sin scope de tenant)
             $clientUsers = collect();
             if ($property && !empty($property->client_id)) {
                 $clientObj = \App\Models\Client::withoutGlobalScopes()->find($property->client_id);
                 if ($clientObj && !empty($clientObj->email)) {
-                    $uByEmail = User::where('email', $clientObj->email)->first();
+                    $uByEmail = User::withoutGlobalScopes()->where('email', $clientObj->email)->first();
                     if ($uByEmail) $clientUsers->push($uByEmail);
                 }
-                $uById = User::find($property->client_id);
+                $uById = User::withoutGlobalScopes()->find($property->client_id);
                 if ($uById) $clientUsers->push($uById);
             }
             if (!empty($model->client_id)) {
                 $clientObj2 = \App\Models\Client::withoutGlobalScopes()->find($model->client_id);
                 if ($clientObj2 && !empty($clientObj2->email)) {
-                    $uByEmail2 = User::where('email', $clientObj2->email)->first();
+                    $uByEmail2 = User::withoutGlobalScopes()->where('email', $clientObj2->email)->first();
                     if ($uByEmail2) $clientUsers->push($uByEmail2);
                 }
-                $uById2 = User::find($model->client_id);
+                $uById2 = User::withoutGlobalScopes()->find($model->client_id);
                 if ($uById2) $clientUsers->push($uById2);
             }
 
-            // También notificar a todos los usuarios con rol de cliente (role_id = 3)
-            $allClients = User::where('role_id', 3)->get();
+            // También notificar a todos los usuarios clientes (role_id = 3)
+            $allClients = User::withoutGlobalScopes()->where('role_id', 3)->get();
             foreach ($allClients as $cUser) {
                 $clientUsers->push($cUser);
             }
@@ -1453,11 +1453,11 @@ class ServiceController extends Controller
             $model->save();
 
             // Notificar a Root y al Técnico Asignado
-            $admins = User::whereIn('role_id', [0, 1])->get();
+            $admins = User::withoutGlobalScopes()->whereIn('role_id', [0, 1])->get();
             Notification::send($admins, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
 
             if (isset($model->assigned_to) && $model->assigned_to) {
-                $techUser = User::find($model->assigned_to);
+                $techUser = User::withoutGlobalScopes()->find($model->assigned_to);
                 if ($techUser) {
                     Notification::send($techUser, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
                 }
@@ -1522,18 +1522,18 @@ class ServiceController extends Controller
             if (method_exists($model, 'property') && $model->property) {
                 $property = $model->property;
             } else if (isset($model->property_id)) {
-                $property = \App\Models\Property::find($model->property_id);
+                $property = \App\Models\Property::withoutGlobalScopes()->find($model->property_id);
             }
 
             if ($property && $property->client_id) {
-                $clientUser = User::where('id', $property->client_id)->first();
+                $clientUser = User::withoutGlobalScopes()->where('id', $property->client_id)->first();
                 if ($clientUser) {
                     Notification::send($clientUser, new \App\Notifications\SecondVisitAdminScheduled($model, $request->fecha_programada, $request->observaciones));
                 }
             }
 
             if (!empty($model->assigned_to)) {
-                $techUser = User::find($model->assigned_to);
+                $techUser = User::withoutGlobalScopes()->find($model->assigned_to);
                 if ($techUser) {
                     Notification::send($techUser, new \App\Notifications\SecondVisitAdminScheduled($model, $request->fecha_programada, $request->observaciones));
                 }
