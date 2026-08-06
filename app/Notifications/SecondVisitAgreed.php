@@ -37,6 +37,16 @@ class SecondVisitAgreed extends Notification
             ? "Se ha propuesto una nueva fecha ({$this->fechaConfirmada}) para la 2da visita del trabajo #{$idStr}. Revisa y confirma si la aceptas."
             : "La fecha para la 2da visita del trabajo #{$idStr} ha sido aceptada para el: {$this->fechaConfirmada}.";
 
+        $roleId = isset($notifiable->role_id) ? (int)$notifiable->role_id : null;
+        $targetUrl = "/trabajos";
+        if ($roleId === 2) {
+            $targetUrl = "/trabajo-propiedad/work_order-{$idStr}";
+        } else if ($roleId === 3) {
+            $targetUrl = $propId ? "/propiedad/{$propId}/tablero" : "/propiedades";
+        } else {
+            $targetUrl = "/tablero-servicios?jobId={$idStr}";
+        }
+
         return [
             'service_id' => $idStr,
             'work_order_id' => $idStr,
@@ -44,7 +54,7 @@ class SecondVisitAgreed extends Notification
             'alert_type' => $alertType,
             'title' => $title,
             'message' => $message,
-            'url' => $propId ? "/propiedad/{$propId}/tablero" : "/trabajos"
+            'url' => $targetUrl
         ];
     }
 }
