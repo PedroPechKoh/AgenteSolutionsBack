@@ -1441,31 +1441,58 @@ class ServiceController extends Controller
                 return response()->json(['success' => false, 'message' => 'Trabajo no encontrado'], 404);
             }
 
-            $nota = "\n[RESPUESTA CLIENTE 2DA VISITA]: El cliente " . ($request->accion === 'aceptar' ? 'ACEPTÓ' : 'REPROGRAMÓ') . " la fecha a: " . $request->fecha_confirmada;
-            
-            $model->status = 'Segunda Visita Programada';
-            try {
-                if (isset($model->scheduled_at)) {
-                    $model->scheduled_at = $request->fecha_confirmada;
-                }
-            } catch (\Exception $e) {}
+            $isAceptar = ($request->accion === 'aceptar');
+
+            if ($isAceptar) {
+                $model->status = 'Segunda Visita Programada';
+                try {
+                    if (isset($model->scheduled_at)) {
+                        $model->scheduled_at = $request->fecha_confirmada;
+                    }
+                    if (isset($model->scheduled_start)) {
+                        $model->scheduled_start = $request->fecha_confirmada;
+                    }
+                } catch (\Exception $e) {}
+                $nota = "\n[RESPUESTA 2DA VISITA]: Cita ACEPTADA para la fecha: " . $request->fecha_confirmada;
+            } else {
+                // Si propone una nueva fecha (reprogramar), se mantiene como Solicitada / Reprogramada
+                $model->status = 'Segunda Visita Solicitada';
+                $model->second_visit_proposed_date = $request->fecha_confirmada;
+                $nota = "\n[ALERTA DE REPROGRAMACIÓN 2DA VISITA]: Nueva fecha propuesta: " . $request->fecha_confirmada;
+            }
+
             $model->description = ($model->description ?? '') . $nota;
             $model->save();
 
-            // Notificar a Root y al Técnico Asignado
+            // Notificar a Root y Administradores (rol 0 y 1)
             $admins = User::withoutGlobalScopes()->whereIn('role_id', [0, 1])->get();
-            Notification::send($admins, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
+            if ($admins->count() > 0) {
+                Notification::send($admins, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
+            }
 
-            if (isset($model->assigned_to) && $model->assigned_to) {
-                $techUser = User::withoutGlobalScopes()->find($model->assigned_to);
+            // Notificar al Técnico Asignado (revisando asignaciones de WorkOrder y Service)
+            $techId = $model->tecnico_id ?? $model->assigned_to ?? $model->technician_id ?? null;
+            if ($techId) {
+                $techUser = User::withoutGlobalScopes()->find($techId);
                 if ($techUser) {
                     Notification::send($techUser, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
                 }
             }
 
+            // Notificar al Cliente si fue aceptada/reprogramada por técnico o admin
+            if (isset($model->property_id) && $model->property_id) {
+                $prop = \App\Models\Property::withoutGlobalScopes()->find($model->property_id);
+                if ($prop && $prop->user_id) {
+                    $clientUser = User::withoutGlobalScopes()->find($prop->user_id);
+                    if ($clientUser) {
+                        Notification::send($clientUser, new \App\Notifications\SecondVisitAgreed($model, $request->fecha_confirmada, $request->accion));
+                    }
+                }
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'Respuesta registrada. Segunda visita programada con éxito.',
+                'message' => $isAceptar ? 'Segunda visita programada con éxito.' : 'Nueva fecha propuesta registrada.',
                 'data' => $model
             ], 200);
 

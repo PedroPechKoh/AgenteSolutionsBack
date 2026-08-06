@@ -29,14 +29,21 @@ class SecondVisitAgreed extends Notification
     {
         $idStr = is_object($this->service) ? ($this->service->id ?? 'N/A') : $this->service;
         $propId = is_object($this->service) ? ($this->service->property_id ?? null) : null;
-        $textoAccion = $this->accion === 'reprogramar' ? 'propuso una nueva fecha' : 'confirmó la fecha propuesta';
+        $isReprogramar = ($this->accion === 'reprogramar');
+
+        $alertType = $isReprogramar ? 'second_visit_reprogrammed' : 'second_visit_agreed';
+        $title = $isReprogramar ? '📅 Propuesta de Nueva Fecha para 2da Visita' : '✅ ¡2da Visita Programada y Aceptada!';
+        $message = $isReprogramar 
+            ? "Se ha propuesto una nueva fecha ({$this->fechaConfirmada}) para la 2da visita del trabajo #{$idStr}. Revisa y confirma si la aceptas."
+            : "La fecha para la 2da visita del trabajo #{$idStr} ha sido aceptada para el: {$this->fechaConfirmada}.";
 
         return [
             'service_id' => $idStr,
+            'work_order_id' => $idStr,
             'property_id' => $propId,
-            'alert_type' => 'second_visit_agreed',
-            'title' => '¡Acuerdo de Segunda Visita!',
-            'message' => "El cliente y el técnico llegaron a un acuerdo. El cliente {$textoAccion} para la 2da visita del trabajo #{$idStr}: {$this->fechaConfirmada}.",
+            'alert_type' => $alertType,
+            'title' => $title,
+            'message' => $message,
             'url' => $propId ? "/propiedad/{$propId}/tablero" : "/trabajos"
         ];
     }
