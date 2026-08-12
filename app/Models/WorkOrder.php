@@ -54,4 +54,9 @@ class WorkOrder extends Model
     {
         return $this->hasMany(WorkReport::class, 'work_order_id');
     }
+
+    public function networkQuotes()
+    {
+        return $this->hasMany(NetworkQuote::class, 'work_order_id');
+    }
 }

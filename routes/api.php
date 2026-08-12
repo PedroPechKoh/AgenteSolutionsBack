@@ -514,6 +514,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/mercado-trabajos', function () {
         $jobs = \App\Models\WorkOrder::withoutGlobalScopes()
             ->with(['property.client'])
+            ->withCount('networkQuotes')
             ->where('publish_network', 1)
             ->where('status', 'Por Hacer')
             ->orderBy('created_at', 'desc')
@@ -524,6 +525,43 @@ Route::middleware('auth:sanctum')->group(function () {
             'data' => $jobs
         ]);
     });
+
+    // Enviar una cotización a un trabajo de la red
+    Route::post('/mercado-trabajos/{id}/cotizar', function (Request $request, $id) {
+        $request->validate([
+            'price' => 'required|numeric|min:0',
+            'message' => 'nullable|string'
+        ]);
+
+        $workOrder = \App\Models\WorkOrder::withoutGlobalScopes()->findOrFail($id);
+        $user = auth('sanctum')->user();
+        
+        $quote = \App\Models\NetworkQuote::create([
+            'work_order_id' => $workOrder->id,
+            'technician_id' => $user->id,
+            'price' => $request->price,
+            'message' => $request->message,
+            'status' => 'pending'
+        ]);
+
+        // Notificar al dueño de la orden de trabajo (el Autónomo o Cliente)
+        // El dueño es el 'tenant_id' o 'property->client_id'
+        try {
+            $owner = \App\Models\User::withoutGlobalScopes()->where('tenant_id', $workOrder->tenant_id)->first();
+            if ($owner) {
+                $techName = $user->first_name . ' ' . $user->last_name;
+                $propName = $workOrder->property ? ($workOrder->property->property_name ?: $workOrder->property->address) : 'Propiedad';
+                \Illuminate\Support\Facades\Notification::send($owner, new \App\Notifications\NetworkQuoteReceived($quote, $techName, $propName));
+            }
+        } catch (\Exception $e) {
+            \Log::error("Error enviando notificación de cotización: " . $e->getMessage());
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cotización enviada con éxito'
+        ]);
+    })->middleware('auth:sanctum');
 
     Route::get('/work-orders/all', function () {
         $user = auth('sanctum')->user();
