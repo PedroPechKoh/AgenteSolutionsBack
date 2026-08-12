@@ -513,7 +513,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Nuevo Endpoint para el Mercado de Trabajos (Trabajos Públicos en la Red)
     Route::get('/mercado-trabajos', function () {
         $jobs = \App\Models\WorkOrder::withoutGlobalScopes()
-            ->with(['property.client'])
+            ->with([
+                'property' => function($q) { $q->withoutGlobalScopes(); },
+                'property.client' => function($q) { $q->withoutGlobalScopes(); }
+            ])
             ->withCount('networkQuotes')
             ->where('publish_network', 1)
             ->where('status', 'Por Hacer')
