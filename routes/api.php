@@ -448,6 +448,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'equipment' => 'nullable|string',
             'description' => 'required|string',
             'batch_id' => 'nullable|string',
+            'publish_network' => 'nullable|boolean',
             'evidence_1' => 'nullable|file|image|max:5120',
             'evidence_2' => 'nullable|file|image|max:5120'
         ]);
@@ -479,6 +480,7 @@ Route::middleware('auth:sanctum')->group(function () {
             'evidence_path_2' => $path2,
             'status' => 'Por Hacer',
             'priority' => $request->priority ?: ($request->type === 'SOS' ? 'Urgente' : 'Normal'),
+            'publish_network' => filter_var($request->publish_network, FILTER_VALIDATE_BOOLEAN) ? 1 : 0,
         ]);
 
         // 4. Notificaciones (App y Correo)
@@ -506,6 +508,20 @@ Route::middleware('auth:sanctum')->group(function () {
             'success' => true,
             'message' => 'Servicio solicitado con éxito'
         ], 201);
+    });
+
+    // Nuevo Endpoint para el Mercado de Trabajos (Trabajos Públicos en la Red)
+    Route::get('/mercado-trabajos', function () {
+        $jobs = \App\Models\WorkOrder::with(['property.client'])
+            ->where('publish_network', 1)
+            ->where('status', 'Por Hacer')
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
+        return response()->json([
+            'success' => true,
+            'data' => $jobs
+        ]);
     });
 
     Route::get('/work-orders/all', function () {

@@ -26,7 +26,8 @@ class WorkOrder extends Model
         'batch_id',
         'tecnico_id',
         'custom_checklist',
-        'scheduled_at'
+        'scheduled_at',
+        'publish_network'
     ];
 
     protected $casts = [
