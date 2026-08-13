@@ -573,17 +573,13 @@ Route::middleware('auth:sanctum')->group(function () {
         $workOrder = \App\Models\WorkOrder::withoutGlobalScopes()->findOrFail($id);
         $user = auth('sanctum')->user();
         
-        $quote = \App\Models\NetworkQuote::updateOrCreate(
-            [
-                'work_order_id' => $workOrder->id,
-                'technician_id' => $user->id
-            ],
-            [
-                'price' => $request->price,
-                'message' => $request->message,
-                'status' => 'pending'
-            ]
-        );
+        $quote = \App\Models\NetworkQuote::create([
+            'work_order_id' => $workOrder->id,
+            'technician_id' => $user->id,
+            'price' => $request->price,
+            'message' => $request->message,
+            'status' => 'pending'
+        ]);
 
         // Notificar al dueño de la orden de trabajo (el Autónomo o Cliente)
         // El dueño es el 'tenant_id' o 'property->client_id'
