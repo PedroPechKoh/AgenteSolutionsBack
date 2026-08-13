@@ -517,7 +517,7 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['message' => 'Cotización no encontrada'], 404);
         }
         
-        $quote->status = 'rechazada';
+        $quote->status = 'rejected';
         $quote->save();
 
         if ($quote->technician) {
