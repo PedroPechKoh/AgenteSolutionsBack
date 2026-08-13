@@ -3,17 +3,16 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use App\Models\NetworkQuote;
 
-class NetworkQuoteRejected extends Notification implements ShouldQueue
+class NetworkQuoteRejected extends Notification
 {
     use Queueable;
 
     public $quote;
 
-    public function __construct($quote)
+    public function __construct(NetworkQuote $quote)
     {
         $this->quote = $quote;
     }
@@ -23,14 +22,15 @@ class NetworkQuoteRejected extends Notification implements ShouldQueue
         return ['database']; 
     }
 
-    public function toArray($notifiable)
+    public function toDatabase($notifiable)
     {
         return [
             'title' => 'Cotización Rechazada',
             'message' => 'Tu cotización fue rechazada. Por favor, edita tu propuesta y envíala de nuevo.',
             'type' => 'network_quote_rejected',
             'quote_id' => $this->quote->id,
-            'work_order_id' => $this->quote->work_order_id
+            'work_order_id' => $this->quote->work_order_id,
+            'url' => "/mercado-trabajos"
         ];
     }
 }
