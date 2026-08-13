@@ -515,13 +515,29 @@ Route::middleware('auth:sanctum')->group(function () {
         $jobs = \App\Models\WorkOrder::withoutGlobalScopes()
             ->with([
                 'property' => function($q) { $q->withoutGlobalScopes(); },
-                'property.client' => function($q) { $q->withoutGlobalScopes(); }
+                'property.client' => function($q) { $q->withoutGlobalScopes(); },
+                'networkQuotes' => function($q) { $q->withoutGlobalScopes(); },
+                'networkQuotes.technician' => function($q) { $q->withoutGlobalScopes(); }
             ])
             ->withCount('networkQuotes')
             ->where('publish_network', 1)
             ->where('status', 'Por Hacer')
             ->orderBy('created_at', 'desc')
             ->get();
+            
+        $jobs->transform(function ($job) {
+            $ownerName = 'Cliente Desconocido';
+            if ($job->property && $job->property->client) {
+                $ownerName = trim($job->property->client->first_name . ' ' . $job->property->client->last_name);
+            } else {
+                $owner = \App\Models\User::withoutGlobalScopes()->find($job->tenant_id);
+                if ($owner) {
+                    $ownerName = trim($owner->first_name . ' ' . $owner->last_name) ?: $owner->name;
+                }
+            }
+            $job->owner_name = $ownerName ?: 'Cliente de la Red';
+            return $job;
+        });
             
         return response()->json([
             'success' => true,
