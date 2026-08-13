@@ -510,6 +510,23 @@ Route::middleware('auth:sanctum')->group(function () {
         ], 201);
     });
 
+    // Rechazar Cotización de la Red
+    Route::post('/network-quotes/{id}/reject', function ($id) {
+        $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->find($id);
+        if (!$quote) {
+            return response()->json(['message' => 'Cotización no encontrada'], 404);
+        }
+        
+        $quote->status = 'rechazada';
+        $quote->save();
+
+        if ($quote->technician) {
+            $quote->technician->notify(new \App\Notifications\NetworkQuoteRejected($quote));
+        }
+
+        return response()->json(['success' => true, 'message' => 'Cotización rechazada exitosamente']);
+    });
+
     // Nuevo Endpoint para el Mercado de Trabajos (Trabajos Públicos en la Red)
     Route::get('/mercado-trabajos', function () {
         $jobs = \App\Models\WorkOrder::withoutGlobalScopes()
@@ -517,7 +534,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 'property' => function($q) { $q->withoutGlobalScopes(); },
                 'property.client' => function($q) { $q->withoutGlobalScopes(); },
                 'networkQuotes' => function($q) { $q->withoutGlobalScopes(); },
-                'networkQuotes.technician' => function($q) { $q->withoutGlobalScopes(); }
+                'networkQuotes.technician' => function($q) { $q->withoutGlobalScopes(); },
+                'networkQuotes.technician.specialties' => function($q) { $q->withoutGlobalScopes(); }
             ])
             ->withCount('networkQuotes')
             ->where('publish_network', 1)
