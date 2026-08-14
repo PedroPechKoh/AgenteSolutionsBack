@@ -66,7 +66,7 @@ class QuoteController extends Controller
                 'type' => 'required|in:manual,archivo',
             ]);
 
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
             $quote = new Quote();
             $quote->service_id = $request->service_id;
             $quote->work_order_id = $request->work_order_id;
@@ -186,7 +186,7 @@ class QuoteController extends Controller
     {
         try {
             $originalQuote = Quote::findOrFail($id);
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
             $isAdmin = $user && in_array($user->role_id, [0, 1]);
 
             // Si es un Admin editando la cotización de un técnico (y la original no es ya un borrador),
@@ -296,7 +296,7 @@ class QuoteController extends Controller
     public function index()
     {
         try {
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
 
             // Cargamos ambas relaciones para soportar ambos flujos
             $quotesQuery = Quote::with([
@@ -404,6 +404,92 @@ class QuoteController extends Controller
                                           'chat_history' => $quote->chat_history,
                                       ];
                                   });
+
+            // Cargar Cotizaciones de la Red (NetworkQuotes)
+            try {
+                $networkQuotesQuery = \App\Models\NetworkQuote::withoutGlobalScopes()
+                    ->with([
+                        'workOrder' => function($q) { 
+                            $q->withoutGlobalScopes()->with([
+                                'property' => function($qp) { $qp->withoutGlobalScopes()->with('client'); }
+                            ]); 
+                        },
+                        'technician' => function($q) { $q->withoutGlobalScopes(); }
+                    ]);
+
+                if ($user) {
+                    if ($user->role_id === 8 || $user->role_id === 2) {
+                        $networkQuotesQuery->where('technician_id', $user->id);
+                    } elseif ($user->role_id === 4) {
+                        $networkQuotesQuery->whereHas('workOrder', function($q) use ($user) {
+                            $q->withoutGlobalScopes()->where('tenant_id', $user->tenant_id);
+                        });
+                    }
+                }
+
+                $networkQuotes = $networkQuotesQuery->orderBy('created_at', 'desc')->get()->map(function($nq) {
+                    $wo = $nq->workOrder;
+                    $client = $wo?->property?->client;
+                    $clientName = $client ? trim($client->first_name . ' ' . $client->last_name) : ($wo?->owner_name ?? 'Cliente de la Red');
+                    $propName = $wo?->property?->property_name ?: 'Propiedad en Red';
+                    $propAddress = $wo?->property?->address ?: 'Dirección no especificada';
+                    $techName = $nq->technician ? trim($nq->technician->first_name . ' ' . $nq->technician->last_name) : 'Técnico de la Red';
+                    
+                    $statusMapped = match($nq->status) {
+                        'accepted' => 'Aprobado',
+                        'rejected' => 'Rechazado',
+                        default => 'Por Pagar'
+                    };
+
+                    $conceptTitle = $wo ? ($wo->type . ($wo->equipment ? ' - ' . $wo->equipment : '')) : 'Trabajo de la Red';
+                    return [
+                        'id' => 'net_' . $nq->id,
+                        'network_quote_id' => $nq->id,
+                        'is_network_quote' => true,
+                        'property_id' => $wo?->property_id,
+                        'service_id' => null,
+                        'work_order_id' => $nq->work_order_id,
+                        'folio' => 'RED-' . str_pad($nq->id, 3, '0', STR_PAD_LEFT),
+                        'cliente' => $clientName ?: 'Cliente de la Red',
+                        'cliente_id' => $client?->id,
+                        'cliente_user_id' => $client?->user_id,
+                        'tecnico' => $techName,
+                        'tecnico_id' => $nq->technician_id,
+                        'tecnico_user_id' => $nq->technician_id,
+                        'propiedad_nombre' => $propName,
+                        'propiedad_direccion' => $propAddress,
+                        'cliente_telefono' => $client?->phone ?? '',
+                        'cliente_email' => $client?->email ?? '',
+                        'foto_fachada' => $wo?->evidence_path ?: ($wo?->evidence_path_2 ?: $wo?->property?->facade_photo_path),
+                        'evidence_photo_path' => $wo?->evidence_path ?: $wo?->evidence_path_2,
+                        'fecha' => $nq->created_at ? $nq->created_at->format('Y-m-d') : date('Y-m-d'),
+                        'created_at' => $nq->created_at,
+                        'total' => (float)$nq->price,
+                        'estimated_amount' => (float)$nq->price,
+                        'status' => $statusMapped,
+                        'network_status' => $nq->status,
+                        'type' => 'manual',
+                        'concept' => json_encode([
+                            'conceptos' => [
+                                [
+                                    'descripcion' => $conceptTitle,
+                                    'cantidad' => 1,
+                                    'precio_u' => (float)$nq->price,
+                                    'precio' => (float)$nq->price
+                                ]
+                            ],
+                            'materiales' => []
+                        ]),
+                        'observations' => $nq->message ?: ($wo?->description ?? 'Cotización enviada en la Red de Trabajos'),
+                        'created_by_role' => 'Técnico de la Red',
+                        'payment_status' => $nq->status === 'accepted' ? 'Pagado' : 'Pendiente',
+                    ];
+                });
+
+                $quotes = $quotes->concat($networkQuotes);
+            } catch (\Throwable $netErr) {
+                \Log::warning("Error cargando network quotes en QuoteController: " . $netErr->getMessage());
+            }
 
             return response()->json($quotes, 200);
         } catch (\Exception $e) {
@@ -539,7 +625,7 @@ public function finalizarCotizacion(Request $request, $id)
             ]);
 
             $quote = Quote::findOrFail($id);
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
 
             $newMessage = [
                 'sender_id' => $user->id,
@@ -737,7 +823,7 @@ public function finalizarCotizacion(Request $request, $id)
     public function confirmarEfectivo(Request $request, $id)
     {
         try {
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
             if (!$user || !in_array($user->role_id, [0, 1])) {
                 return response()->json(['error' => 'No autorizado'], 403);
             }
@@ -799,7 +885,7 @@ public function finalizarCotizacion(Request $request, $id)
     public function confirmarEfectivoRestante(Request $request, $id)
     {
         try {
-            $user = auth()->user();
+            $user = auth('sanctum')->user() ?: auth()->user();
             if (!$user || !in_array($user->role_id, [0, 1])) {
                 return response()->json(['error' => 'No autorizado'], 403);
             }
