@@ -512,54 +512,70 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Aceptar Cotización de la Red
     Route::post('/network-quotes/{id}/accept', function ($id) {
-        $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['technician', 'workOrder'])->find($id);
-        if (!$quote) {
-            return response()->json(['message' => 'Cotización no encontrada'], 404);
-        }
+        try {
+            $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['technician', 'workOrder'])->find($id);
+            if (!$quote) {
+                return response()->json(['success' => false, 'message' => 'Cotización no encontrada'], 404);
+            }
 
-        $quote->status = 'accepted';
-        $quote->save();
+            $quote->status = 'accepted';
+            $quote->save();
 
-        $workOrder = $quote->workOrder ?: \App\Models\WorkOrder::withoutGlobalScopes()->find($quote->work_order_id);
+            $workOrder = $quote->workOrder ?: \App\Models\WorkOrder::withoutGlobalScopes()->find($quote->work_order_id);
 
-        if ($workOrder) {
-            $workOrder->tecnico_id = $quote->technician_id;
-            $workOrder->status = 'Asignado';
-            $workOrder->publish_network = 0;
-            $workOrder->save();
+            if ($workOrder) {
+                $workOrder->tecnico_id = $quote->technician_id;
+                $workOrder->status = 'Asignado';
+                $workOrder->save();
 
-            \Illuminate\Support\Facades\DB::table('work_order_technician')->insertOrIgnore([
-                'work_order_id' => $workOrder->id,
-                'technician_id' => $quote->technician_id,
-                'created_at' => now(),
-                'updated_at' => now()
+                try {
+                    \Illuminate\Support\Facades\DB::table('work_order_technician')->insertOrIgnore([
+                        'work_order_id' => $workOrder->id,
+                        'technician_id' => $quote->technician_id,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                } catch (\Throwable $e) {
+                    \Log::warning("No se pudo insertar en work_order_technician: " . $e->getMessage());
+                }
+
+                $title = $workOrder->type . ($workOrder->equipment ? ' - ' . $workOrder->equipment : '');
+                $techName = $quote->technician ? ($quote->technician->first_name . ' ' . $quote->technician->last_name) : 'Técnico';
+
+                // 1. Notificar al Técnico
+                try {
+                    if ($quote->technician) {
+                        $quote->technician->notify(new \App\Notifications\NetworkQuoteAccepted($quote, $title));
+                    }
+                } catch (\Throwable $e) {
+                    \Log::error("Error notificando al técnico: " . $e->getMessage());
+                }
+
+                // 2. Notificar al Cliente/Autónomo
+                try {
+                    $user = auth('sanctum')->user();
+                    if (!$user && $workOrder->tenant_id) {
+                        $user = \App\Models\User::withoutGlobalScopes()->where('tenant_id', $workOrder->tenant_id)->first();
+                    }
+                    if ($user) {
+                        $user->notify(new \App\Notifications\NetworkQuoteAcceptedClient($quote, $techName, $title));
+                    }
+                } catch (\Throwable $e) {
+                    \Log::error("Error notificando al cliente: " . $e->getMessage());
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => '¡Cotización aceptada con éxito! El trabajo ha sido asignado al técnico.'
             ]);
-
-            $title = $workOrder->type . ($workOrder->equipment ? ' - ' . $workOrder->equipment : '');
-            $techName = $quote->technician ? ($quote->technician->first_name . ' ' . $quote->technician->last_name) : 'Técnico';
-
-            try {
-                if ($quote->technician) {
-                    $quote->technician->notify(new \App\Notifications\NetworkQuoteAccepted($quote, $title));
-                }
-            } catch (\Exception $e) {
-                \Log::error("Error notificando al técnico: " . $e->getMessage());
-            }
-
-            try {
-                $user = auth('sanctum')->user();
-                if ($user) {
-                    $user->notify(new \App\Notifications\NetworkQuoteAcceptedClient($quote, $techName, $title));
-                }
-            } catch (\Exception $e) {
-                \Log::error("Error notificando al cliente: " . $e->getMessage());
-            }
+        } catch (\Throwable $e) {
+            \Log::error("Error aceptando cotización: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Error interno al aceptar cotización: ' . $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => '¡Cotización aceptada con éxito! El trabajo ha sido asignado al técnico.'
-        ]);
     });
 
     // Rechazar Cotización de la Red
@@ -726,3 +742,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/job-requests/{id}/quotes', [JobQuoteController::class, 'store']);
     Route::get('/job-quotes/my-quotes', [JobQuoteController::class, 'myQuotes']);
 });
+
