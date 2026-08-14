@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -508,6 +508,58 @@ Route::middleware('auth:sanctum')->group(function () {
             'success' => true,
             'message' => 'Servicio solicitado con éxito'
         ], 201);
+    });
+
+    // Aceptar Cotización de la Red
+    Route::post('/network-quotes/{id}/accept', function ($id) {
+        $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['technician', 'workOrder'])->find($id);
+        if (!$quote) {
+            return response()->json(['message' => 'Cotización no encontrada'], 404);
+        }
+
+        $quote->status = 'accepted';
+        $quote->save();
+
+        $workOrder = $quote->workOrder ?: \App\Models\WorkOrder::withoutGlobalScopes()->find($quote->work_order_id);
+
+        if ($workOrder) {
+            $workOrder->tecnico_id = $quote->technician_id;
+            $workOrder->status = 'Asignado';
+            $workOrder->publish_network = 0;
+            $workOrder->save();
+
+            \Illuminate\Support\Facades\DB::table('work_order_technician')->insertOrIgnore([
+                'work_order_id' => $workOrder->id,
+                'technician_id' => $quote->technician_id,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            $title = $workOrder->type . ($workOrder->equipment ? ' - ' . $workOrder->equipment : '');
+            $techName = $quote->technician ? ($quote->technician->first_name . ' ' . $quote->technician->last_name) : 'Técnico';
+
+            try {
+                if ($quote->technician) {
+                    $quote->technician->notify(new \App\Notifications\NetworkQuoteAccepted($quote, $title));
+                }
+            } catch (\Exception $e) {
+                \Log::error("Error notificando al técnico: " . $e->getMessage());
+            }
+
+            try {
+                $user = auth('sanctum')->user();
+                if ($user) {
+                    $user->notify(new \App\Notifications\NetworkQuoteAcceptedClient($quote, $techName, $title));
+                }
+            } catch (\Exception $e) {
+                \Log::error("Error notificando al cliente: " . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => '¡Cotización aceptada con éxito! El trabajo ha sido asignado al técnico.'
+        ]);
     });
 
     // Rechazar Cotización de la Red
