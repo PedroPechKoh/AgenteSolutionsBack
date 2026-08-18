@@ -541,7 +541,7 @@ class ServiceController extends Controller
             $isWorkOrder = false;
 
             if ($parsed['isWorkOrder']) {
-                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians', 'networkQuotes.technician'])->find($realId);
                 if ($model) {
                     $isWorkOrder = true;
                 } else {
@@ -550,14 +550,14 @@ class ServiceController extends Controller
             } elseif ($parsed['isService']) {
                 $model = Service::withoutGlobalScopes()->with(['property.client', 'technician', 'technicians'])->find($realId);
                 if (!$model) {
-                    $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                    $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians', 'networkQuotes.technician'])->find($realId);
                     if ($model) {
                         $isWorkOrder = true;
                     }
                 }
             } else {
                 // Fallback: Buscar en WorkOrder primero si es numérico, luego en Service
-                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians'])->find($realId);
+                $model = WorkOrder::withoutGlobalScopes()->with(['property.client', 'tecnico', 'technicians', 'networkQuotes.technician'])->find($realId);
                 if ($model) {
                     $isWorkOrder = true;
                 } else {
@@ -637,7 +637,9 @@ class ServiceController extends Controller
                     'property_id' => $model->property_id,
                     'evidencias' => array_values(array_filter([$model->evidence_path, $model->evidence_path_2])),
                     'secciones' => $secciones,
-                    'zone' => $model->zone
+                    'zone' => $model->zone,
+                    'is_from_network' => (bool) ($model->is_from_network || ($model->networkQuotes && $model->networkQuotes->count() > 0)),
+                    'network_quotes' => $model->networkQuotes
                 ], 200);
             } else {
                 return response()->json([
