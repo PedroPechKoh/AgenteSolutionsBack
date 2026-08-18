@@ -622,6 +622,67 @@ Route::middleware('auth:sanctum')->group(function () {
                 }
             }
             $job->owner_name = $ownerName ?: 'Cliente de la Red';
+
+            // Coordenadas fijas y estables (nunca saltan en recargas)
+            $rawLat = 21.0181;
+            $rawLng = -89.6242;
+            $hasRealCoords = false;
+
+            if ($job->property && !empty($job->property->coordinates)) {
+                $coordsParts = explode(',', $job->property->coordinates);
+                if (count($coordsParts) >= 2) {
+                    $parsedLat = (float)trim($coordsParts[0]);
+                    $parsedLng = (float)trim($coordsParts[1]);
+                    if ($parsedLat != 0 && $parsedLng != 0) {
+                        $rawLat = $parsedLat;
+                        $rawLng = $parsedLng;
+                        $hasRealCoords = true;
+                    }
+                }
+            }
+
+            if (!$hasRealCoords) {
+                $seed = (($job->property_id ?: $job->id) * 17) % 360;
+                $rawLat = 21.0181 + (sin(deg2rad($seed)) * 0.025);
+                $rawLng = -89.6242 + (cos(deg2rad($seed)) * 0.025);
+            }
+
+            // Área / Zona de cobertura aproximada (Protección de privacidad de la casa exacta)
+            $areaLat = round($rawLat, 3);
+            $areaLng = round($rawLng, 3);
+            $job->area_lat = $areaLat;
+            $job->area_lng = $areaLng;
+            $job->lat = $areaLat;
+            $job->lng = $areaLng;
+
+            // Extracción de Colonia / Fraccionamiento / Zona
+            $fullAddress = $job->property ? ($job->property->address ?: '') : '';
+            $zonaColonia = 'Mérida, Yucatán';
+
+            if (!empty($job->zone) && !in_array(strtolower($job->zone), ['general', 'n/a', ''])) {
+                $zonaColonia = $job->zone;
+            } elseif (!empty($fullAddress)) {
+                if (preg_match('/(?:Col\.|Colonia|Fracc\.|Fraccionamiento)\s*([^,]+)/i', $fullAddress, $matches)) {
+                    $zonaColonia = trim($matches[0]);
+                    if (preg_match('/(M[eé]rida|Um[aá]n|Kanas[ií]n|Progreso|Conkal)/i', $fullAddress, $cityMatches)) {
+                        $zonaColonia .= ', ' . $cityMatches[1];
+                    }
+                } else {
+                    $parts = array_filter(array_map('trim', explode(',', $fullAddress)));
+                    if (count($parts) >= 2) {
+                        $zonaColonia = implode(', ', array_slice($parts, -2));
+                    } else {
+                        $zonaColonia = $fullAddress;
+                    }
+                }
+            } elseif ($job->property && !empty($job->property->property_name)) {
+                $zonaColonia = $job->property->property_name;
+            }
+
+            $job->zona_colonia = $zonaColonia;
+            $job->zona = $zonaColonia;
+            $job->area_name = $zonaColonia;
+
             return $job;
         });
             
