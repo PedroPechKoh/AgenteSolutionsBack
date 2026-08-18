@@ -483,6 +483,7 @@ class QuoteController extends Controller
                         'observations' => $nq->message ?: ($wo?->description ?? 'Cotización enviada en la Red de Trabajos'),
                         'created_by_role' => 'Técnico de la Red',
                         'payment_status' => $nq->status === 'accepted' ? 'Pagado' : 'Pendiente',
+                        'chat_history' => $nq->chat_history ?? [],
                     ];
                 });
 
@@ -623,6 +624,49 @@ public function finalizarCotizacion(Request $request, $id)
             $request->validate([
                 'message' => 'required|string',
             ]);
+
+            if (str_starts_with((string)$id, 'net_')) {
+                $netId = (int)str_replace('net_', '', (string)$id);
+                $netQuote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['workOrder.property.client', 'technician'])->findOrFail($netId);
+                $user = auth('sanctum')->user() ?: auth()->user();
+
+                $senderRole = 'Usuario';
+                if ($user->role_id == 3) $senderRole = 'Cliente';
+                elseif ($user->role_id == 4) $senderRole = 'Autónomo';
+                elseif (in_array($user->role_id, [2, 8])) $senderRole = 'Técnico de la Red';
+                elseif (in_array($user->role_id, [0, 1])) $senderRole = 'Admin';
+
+                $newMessage = [
+                    'sender_id' => $user->id,
+                    'sender_name' => $user->name ?: ($user->first_name . ' ' . $user->last_name),
+                    'sender_role' => $senderRole,
+                    'message' => $request->message,
+                    'created_at' => now()->toIso8601String(),
+                ];
+
+                $history = $netQuote->chat_history ?? [];
+                $history[] = $newMessage;
+                $netQuote->chat_history = $history;
+                $netQuote->save();
+
+                $senderNameStr = $user->name ?: ($user->first_name . ' ' . $user->last_name);
+
+                if (in_array($user->role_id, [2, 8])) {
+                    $clientUserId = $netQuote->workOrder?->tenant_id ?: ($netQuote->workOrder?->property?->client?->user_id ?? null);
+                    if ($clientUserId) {
+                        $clientUser = User::find($clientUserId);
+                        if ($clientUser) {
+                            \Illuminate\Support\Facades\Notification::send($clientUser, new \App\Notifications\NewNetworkQuoteChatMessageNotification($netQuote, $senderNameStr, 'Técnico'));
+                        }
+                    }
+                } else {
+                    if ($netQuote->technician) {
+                        \Illuminate\Support\Facades\Notification::send($netQuote->technician, new \App\Notifications\NewNetworkQuoteChatMessageNotification($netQuote, $senderNameStr, $senderRole));
+                    }
+                }
+
+                return response()->json(['message' => 'Mensaje enviado', 'chat_history' => $history], 200);
+            }
 
             $quote = Quote::findOrFail($id);
             $user = auth('sanctum')->user() ?: auth()->user();

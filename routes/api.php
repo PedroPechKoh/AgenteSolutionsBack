@@ -595,6 +595,80 @@ Route::middleware('auth:sanctum')->group(function () {
         return response()->json(['success' => true, 'message' => 'Cotización rechazada exitosamente']);
     });
 
+    // Obtener historial de chat de una Cotización de la Red
+    Route::get('/network-quotes/{id}/chat', function ($id) {
+        $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['technician', 'workOrder.property.client'])->find($id);
+        if (!$quote) {
+            return response()->json(['message' => 'Cotización no encontrada'], 404);
+        }
+        return response()->json([
+            'success' => true,
+            'chat_history' => $quote->chat_history ?? [],
+            'quote' => $quote
+        ]);
+    });
+
+    // Enviar mensaje en el chat de una Cotización de la Red
+    Route::post('/network-quotes/{id}/chat', function (\Illuminate\Http\Request $request, $id) {
+        $request->validate([
+            'message' => 'required|string'
+        ]);
+
+        $quote = \App\Models\NetworkQuote::withoutGlobalScopes()->with(['workOrder.property.client', 'technician'])->find($id);
+        if (!$quote) {
+            return response()->json(['message' => 'Cotización no encontrada'], 404);
+        }
+
+        $user = auth('sanctum')->user() ?: auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'No autorizado'], 401);
+        }
+
+        $senderRole = 'Usuario';
+        if ($user->role_id == 3) $senderRole = 'Cliente';
+        elseif ($user->role_id == 4) $senderRole = 'Autónomo';
+        elseif (in_array($user->role_id, [2, 8])) $senderRole = 'Técnico de la Red';
+        elseif (in_array($user->role_id, [0, 1])) $senderRole = 'Admin';
+
+        $newMessage = [
+            'sender_id' => $user->id,
+            'sender_name' => $user->name ?: ($user->first_name . ' ' . $user->last_name),
+            'sender_role' => $senderRole,
+            'message' => $request->message,
+            'created_at' => now()->toIso8601String(),
+        ];
+
+        $history = $quote->chat_history ?? [];
+        $history[] = $newMessage;
+        $quote->chat_history = $history;
+        $quote->save();
+
+        $senderNameStr = $user->name ?: ($user->first_name . ' ' . $user->last_name);
+
+        // Disparar Notificaciones
+        if (in_array($user->role_id, [2, 8])) {
+            // El técnico envió el mensaje -> notificar al Cliente / Autónomo dueño del reporte
+            $clientUserId = $quote->workOrder?->tenant_id ?: ($quote->workOrder?->property?->client?->user_id ?? null);
+            if ($clientUserId) {
+                $clientUser = \App\Models\User::find($clientUserId);
+                if ($clientUser) {
+                    \Illuminate\Support\Facades\Notification::send($clientUser, new \App\Notifications\NewNetworkQuoteChatMessageNotification($quote, $senderNameStr, 'Técnico'));
+                }
+            }
+        } else {
+            // El Cliente / Autónomo envió el mensaje -> notificar al Técnico
+            if ($quote->technician) {
+                \Illuminate\Support\Facades\Notification::send($quote->technician, new \App\Notifications\NewNetworkQuoteChatMessageNotification($quote, $senderNameStr, $senderRole));
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Mensaje enviado',
+            'chat_history' => $history
+        ]);
+    });
+
     // Nuevo Endpoint para el Mercado de Trabajos (Trabajos Públicos en la Red)
     Route::get('/mercado-trabajos', function () {
         $jobs = \App\Models\WorkOrder::withoutGlobalScopes()
