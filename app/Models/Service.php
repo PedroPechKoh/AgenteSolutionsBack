@@ -46,7 +46,7 @@ class Service extends Model
 
     public function technician()
     {
-        return $this->belongsTo(User::class, 'assigned_to');
+        return $this->belongsTo(User::class, 'assigned_to')->withoutGlobalScopes();
     }
     public function components()
     {
@@ -55,7 +55,7 @@ class Service extends Model
 
     public function technicians()
     {
-        return $this->belongsToMany(User::class, 'service_technician', 'service_id', 'technician_id');
+        return $this->belongsToMany(User::class, 'service_technician', 'service_id', 'technician_id')->withoutGlobalScopes();
     }
 
     public function workReports()

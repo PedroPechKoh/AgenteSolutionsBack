@@ -42,12 +42,12 @@ class WorkOrder extends Model
 
     public function tecnico()
     {
-        return $this->belongsTo(User::class, 'tecnico_id');
+        return $this->belongsTo(User::class, 'tecnico_id')->withoutGlobalScopes();
     }
 
     public function technicians()
     {
-        return $this->belongsToMany(User::class, 'work_order_technician', 'work_order_id', 'technician_id');
+        return $this->belongsToMany(User::class, 'work_order_technician', 'work_order_id', 'technician_id')->withoutGlobalScopes();
     }
 
     public function workReports()

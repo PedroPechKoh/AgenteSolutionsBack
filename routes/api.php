@@ -803,9 +803,43 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     })->middleware('auth:sanctum');
 
+    Route::delete('/work-orders/reset-all-services', function () {
+        $user = auth('sanctum')->user();
+        
+        try {
+            if ($user && $user->tenant_id) {
+                \App\Models\WorkReport::withoutGlobalScopes()->where('tenant_id', $user->tenant_id)->delete();
+                \App\Models\NetworkQuote::withoutGlobalScopes()->whereHas('workOrder', function($q) use ($user) {
+                    $q->where('tenant_id', $user->tenant_id);
+                })->delete();
+                \App\Models\WorkOrder::withoutGlobalScopes()->where('tenant_id', $user->tenant_id)->delete();
+                \App\Models\Service::withoutGlobalScopes()->where('tenant_id', $user->tenant_id)->delete();
+            } else {
+                \App\Models\WorkReport::withoutGlobalScopes()->delete();
+                \App\Models\NetworkQuote::withoutGlobalScopes()->delete();
+                \App\Models\WorkOrder::withoutGlobalScopes()->delete();
+                \App\Models\Service::withoutGlobalScopes()->delete();
+            }
+            \Illuminate\Support\Facades\DB::table('work_order_technician')->delete();
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Todos los servicios han sido borrados de la base de datos con éxito.'
+        ]);
+    });
+
     Route::get('/work-orders/all', function () {
         $user = auth('sanctum')->user();
-        $query = \App\Models\WorkOrder::with(['property.client', 'tecnico']);
+        $query = \App\Models\WorkOrder::withoutGlobalScopes()->with([
+            'property.client',
+            'tecnico' => fn($q) => $q->withoutGlobalScopes(),
+            'technicians' => fn($q) => $q->withoutGlobalScopes(),
+            'networkQuotes' => fn($q) => $q->withoutGlobalScopes(),
+            'networkQuotes.technician' => fn($q) => $q->withoutGlobalScopes()
+        ]);
         
         if ($user && $user->role_id == 4) {
             $query->where(function($q) use ($user) {
